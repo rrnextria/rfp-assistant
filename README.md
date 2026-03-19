@@ -230,8 +230,14 @@ Copy `.env.example` to `.env` and fill in:
 | `JWT_SECRET` | Secret for signing JWTs — change in production |
 | `ANTHROPIC_API_KEY` | Required if using Claude adapter |
 | `GOOGLE_API_KEY` | Required if using Gemini adapter |
+| `OPENAI_API_KEY` | Required if using OpenAI / Copilot adapter |
+| `AZURE_OPENAI_API_KEY` | Required if using Azure OpenAI adapter |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint (e.g. `https://<resource>.openai.azure.com`) |
+| `AZURE_OPENAI_DEPLOYMENT` | Azure deployment name (default: `gpt-4o`) |
 | `OLLAMA_BASE_URL` | Ollama base URL (default: `http://host.docker.internal:11434`) |
-| `DEFAULT_TENANT_MODEL` | Default adapter: `claude`, `gemini`, or `ollama` |
+| `DEFAULT_TENANT_MODEL` | Default adapter: `claude`, `gemini`, `openai`, `copilot`, or `ollama` |
+
+Set `DEFAULT_TENANT_MODEL=copilot` or `DEFAULT_TENANT_MODEL=openai` to use GPT-4o via the OpenAI API. Set `DEFAULT_TENANT_MODEL=copilot` with Azure credentials to use Azure OpenAI (e.g. Microsoft 365 Copilot's underlying model).
 
 For the Teams Copilot adapter, also set `BOT_APP_ID` and `BOT_APP_PASSWORD` from your Azure Bot registration.
 

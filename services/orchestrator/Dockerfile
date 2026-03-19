@@ -4,6 +4,13 @@ COPY common /common
 RUN pip install --no-cache-dir /common
 
 COPY scripts/install_deps.py /install_deps.py
+
+# Install adapter client libraries so the orchestrator can call LLM providers directly
+RUN pip install --no-cache-dir anthropic>=0.30 "openai>=1.0" google-generativeai>=0.7
+
+# Copy adapter source files into /app/adapters so pipeline.py can import them
+COPY services/adapters/ /app/adapters/
+
 COPY services/orchestrator/pyproject.toml .
 RUN python3 /install_deps.py
 COPY services/orchestrator/ .

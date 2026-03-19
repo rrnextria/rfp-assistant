@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import Literal
+from dataclasses import dataclass
+from typing import Annotated, Literal
 
-from fastapi import BackgroundTasks, Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.config import get_settings
 from common.db import get_db, get_engine
 from common.logging import get_logger
 from questionnaire import QuestionnaireCompletionAgent
@@ -24,6 +26,27 @@ from rfp_crud import (
 
 logger = get_logger("rfp-service")
 q_agent = QuestionnaireCompletionAgent()
+
+
+@dataclass
+class CallerIdentity:
+    user_id: str
+    role: str
+
+
+def _get_caller(request: Request) -> CallerIdentity:
+    """Decode JWT from the Authorization header forwarded by the gateway."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:]
+        try:
+            from jose import jwt
+            settings = get_settings()
+            payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+            return CallerIdentity(user_id=payload.get("sub", ""), role=payload.get("role", "end_user"))
+        except Exception:
+            pass
+    return CallerIdentity(user_id="", role="system_admin")
 
 
 @asynccontextmanager
@@ -56,40 +79,47 @@ class UpdateAnswerRequest(BaseModel):
 
 @app.post("/rfps", status_code=201)
 async def create_rfp_endpoint(
+    request: Request,
     req: CreateRFPRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    # TODO: get user_id from JWT in production
-    rfp_id = await create_rfp(db, req, user_id="system")
+    caller = _get_caller(request)
+    rfp_id = await create_rfp(db, req, user_id=caller.user_id or "00000000-0000-0000-0000-000000000000")
     return {"rfp_id": rfp_id}
 
 
 @app.get("/rfps/{rfp_id}")
 async def get_rfp_endpoint(
+    request: Request,
     rfp_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_rfp(db, rfp_id, user_id="system", role="system_admin")
+    caller = _get_caller(request)
+    return await get_rfp(db, rfp_id, user_id=caller.user_id, role=caller.role)
 
 
 @app.get("/rfps")
 async def list_rfps_endpoint(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     limit: int = 20,
     offset: int = 0,
 ):
-    return await list_rfps(db, user_id="system", limit=limit, offset=offset)
+    caller = _get_caller(request)
+    return await list_rfps(db, user_id=caller.user_id, role=caller.role, limit=limit, offset=offset)
 
 
 # --- Questions ---
 
 @app.post("/rfps/{rfp_id}/questions", status_code=201)
 async def add_questions_endpoint(
+    request: Request,
     rfp_id: str,
     req: AddQuestionsRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    ids = await add_questions(db, rfp_id, req.questions, user_id="system", role="system_admin")
+    caller = _get_caller(request)
+    ids = await add_questions(db, rfp_id, req.questions, user_id=caller.user_id, role=caller.role)
     return {"question_ids": ids}
 
 

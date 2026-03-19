@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 60
     anthropic_api_key: str = ""
     google_api_key: str = ""
+    openai_api_key: str = ""
+    azure_openai_api_key: str = ""
+    azure_openai_endpoint: str = ""
+    azure_openai_deployment: str = "gpt-4o"
     ollama_base_url: str = "http://host.docker.internal:11434"
     default_tenant_model: str = "claude"
     sql_echo: bool = False

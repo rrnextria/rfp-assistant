@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass, field
 
@@ -16,8 +17,16 @@ except ImportError:
 
 logger = get_logger("orchestrator.pipeline")
 
-# Ensure adapters package is importable
-sys.path.insert(0, "/home/ravi/git/rfp-assistant/services/adapters")
+# Ensure adapters package is importable.
+# In Docker the adapters are copied to /app/adapters; locally they sit in services/adapters.
+for _adapters_path in [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "adapters"),  # Docker
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "adapters"),  # local dev
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "services", "adapters"),
+]:
+    if os.path.isdir(_adapters_path):
+        sys.path.insert(0, os.path.abspath(_adapters_path))
+        break
 
 
 @dataclass
@@ -130,10 +139,22 @@ async def ask_pipeline(
 
     from base import AdapterError
     from claude import ClaudeAdapter
+    from gemini import GeminiAdapter
     from ollama import OllamaAdapter
+    from openai_adapter import OpenAIAdapter
 
     if provider == "claude" and settings.anthropic_api_key:
         adapter = ClaudeAdapter(api_key=settings.anthropic_api_key)
+    elif provider == "gemini" and settings.google_api_key:
+        adapter = GeminiAdapter(api_key=settings.google_api_key)
+    elif provider in ("openai", "copilot") and settings.openai_api_key:
+        adapter = OpenAIAdapter(api_key=settings.openai_api_key)
+    elif provider in ("azure_openai", "copilot") and settings.azure_openai_api_key:
+        adapter = OpenAIAdapter(
+            api_key=settings.azure_openai_api_key,
+            azure_endpoint=settings.azure_openai_endpoint,
+            deployment=settings.azure_openai_deployment,
+        )
     else:
         adapter = OllamaAdapter(base_url=settings.ollama_base_url)
 

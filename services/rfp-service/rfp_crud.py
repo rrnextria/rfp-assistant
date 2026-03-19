@@ -72,15 +72,27 @@ async def get_rfp(db: AsyncSession, rfp_id: str, user_id: str, role: str) -> dic
     }
 
 
-async def list_rfps(db: AsyncSession, user_id: str, limit: int = 20, offset: int = 0) -> list[dict]:
-    rows = await db.execute(
-        text(
-            "SELECT id, customer, industry, region, created_at "
-            "FROM rfps WHERE created_by = :uid "
-            "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-        ),
-        {"uid": user_id, "limit": limit, "offset": offset},
-    )
+async def list_rfps(
+    db: AsyncSession, user_id: str, role: str = "end_user", limit: int = 20, offset: int = 0
+) -> list[dict]:
+    # system_admin and content_admin see all RFPs; end_users see only their own
+    if role in ("system_admin", "content_admin"):
+        rows = await db.execute(
+            text(
+                "SELECT id, customer, industry, region, created_at "
+                "FROM rfps ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+            ),
+            {"limit": limit, "offset": offset},
+        )
+    else:
+        rows = await db.execute(
+            text(
+                "SELECT id, customer, industry, region, created_at "
+                "FROM rfps WHERE created_by = :uid "
+                "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+            ),
+            {"uid": user_id, "limit": limit, "offset": offset},
+        )
     return [dict(r) for r in rows.mappings().all()]
 
 
@@ -122,18 +134,32 @@ async def generate_answer(
     if not q:
         raise HTTPException(404, "Question not found")
 
-    # Call orchestrator pipeline (internal)
-    import sys
-    sys.path.insert(0, "/home/ravi/git/rfp-assistant/services/orchestrator")
-    from pipeline import ask_pipeline
-    result = await ask_pipeline(
-        question=q["question"],
-        mode="draft",
-        detail_level=detail_level,
-        user_context=user_context,
-        db=db,
-        rfp_id=rfp_id,
-    )
+    import os
+    import httpx
+
+    orchestrator_url = os.environ.get("ORCHESTRATOR_URL", "http://orchestrator:8001")
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                f"{orchestrator_url}/ask",
+                json={
+                    "question": q["question"],
+                    "mode": "draft",
+                    "detail_level": detail_level,
+                    "rfp_id": rfp_id,
+                    "user_context": user_context,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+        logger.error(f"Orchestrator call failed: {exc}")
+        raise HTTPException(502, "Failed to generate answer — orchestrator unavailable")
+
+    answer_text = data.get("answer", "")
+    confidence = data.get("confidence", 0.0)
+    citations = data.get("citations", [])
+    partial = len(citations) < 2
 
     # Get current max version
     ver_row = await db.execute(
@@ -144,7 +170,6 @@ async def generate_answer(
     new_version = ver + 1
 
     answer_id = str(uuid.uuid4())
-    partial = len(result.citations) < 2
     await db.execute(
         text(
             "INSERT INTO rfp_answers (id, question_id, answer, approved, version, confidence, detail_level, partial_compliance) "
@@ -153,9 +178,9 @@ async def generate_answer(
         {
             "id": answer_id,
             "qid": question_id,
-            "answer": result.answer,
+            "answer": answer_text,
             "version": new_version,
-            "confidence": result.confidence,
+            "confidence": confidence,
             "detail_level": detail_level,
             "partial": partial,
         },
