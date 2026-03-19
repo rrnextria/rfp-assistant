@@ -103,10 +103,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Footer with build date */}
       <footer className="border-t bg-white py-3">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400" suppressHydrationWarning>
             Built:{" "}
             {process.env.NEXT_PUBLIC_BUILD_DATE
-              ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleString()
+              ? process.env.NEXT_PUBLIC_BUILD_DATE.replace("T", " ").slice(0, 16) + " UTC"
               : "—"}
           </p>
           <p className="text-xs text-gray-400">
