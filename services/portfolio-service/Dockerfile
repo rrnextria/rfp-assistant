@@ -2,17 +2,17 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install common package first (better layer caching)
+# Install common package
 COPY common /common
 RUN pip install --no-cache-dir -e /common
 
-# Install service dependencies
-COPY services/portfolio-service/pyproject.toml .
-RUN pip install --no-cache-dir -e ".[dev]" || pip install --no-cache-dir -e .
+# Install CPU-only torch first (avoids downloading 6GB+ CUDA packages)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Copy service source
+# Copy service source then install
 COPY services/portfolio-service/ .
+RUN pip install --no-cache-dir -e ".[dev]" 2>/dev/null || pip install --no-cache-dir -e .
 
-EXPOSE 8009
+EXPOSE 8010
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8009", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
