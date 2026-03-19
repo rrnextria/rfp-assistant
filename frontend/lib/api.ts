@@ -11,6 +11,7 @@ export type AskMode = "answer" | "draft" | "review" | "gap";
 export interface Citation {
   chunk_id: string;
   doc_id: string;
+  doc_title?: string;
   snippet: string;
 }
 
@@ -25,6 +26,7 @@ export interface User {
   email: string;
   name?: string;
   role: string;
+  teams?: string[];
   created_at?: string;
 }
 
@@ -33,7 +35,14 @@ export interface RFP {
   customer: string;
   industry: string;
   region: string;
+  status?: string;
+  created_at?: string;
   created_by?: string;
+}
+
+export interface Company {
+  id: string;
+  name: string;
 }
 
 export interface RFPQuestion {
@@ -161,6 +170,10 @@ export const api = {
     return apiFetch(`/documents/${docId}/approve`, { method: "PATCH" });
   },
 
+  deleteDocument(docId: string): Promise<void> {
+    return apiFetch(`/documents/${docId}`, { method: "DELETE" });
+  },
+
   // RFPs
   listRFPs(): Promise<RFP[]> {
     return apiFetch("/rfps");
@@ -174,11 +187,45 @@ export const api = {
     customer: string;
     industry: string;
     region: string;
-  }): Promise<RFP> {
+  }): Promise<{ rfp_id: string }> {
     return apiFetch("/rfps", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  updateRFP(id: string, payload: { status?: string; customer?: string }): Promise<{ rfp_id: string; updated: boolean }> {
+    return apiFetch(`/rfps/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  deleteRFP(id: string): Promise<void> {
+    return apiFetch(`/rfps/${id}`, { method: "DELETE" });
+  },
+
+  regenerateAllAnswers(rfpId: string): Promise<{ status: string; rfp_id: string }> {
+    return apiFetch(`/rfps/${rfpId}/regenerate-all`, {
+      method: "POST",
+      body: JSON.stringify({ detail_level: "balanced", user_context: {} }),
+    });
+  },
+
+  // Companies
+  listCompanies(): Promise<Company[]> {
+    return apiFetch("/companies");
+  },
+
+  createCompany(name: string): Promise<{ company_id: string; name: string }> {
+    return apiFetch("/companies", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  deleteCompany(id: string): Promise<void> {
+    return apiFetch(`/companies/${id}`, { method: "DELETE" });
   },
 
   // RFP Questions

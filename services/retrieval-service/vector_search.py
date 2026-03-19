@@ -18,6 +18,7 @@ class RankedChunk:
     text: str
     score: float
     metadata: dict
+    doc_title: str = ""
     embedding: list[float] | None = None
 
 
@@ -41,12 +42,14 @@ async def vector_search(
 
     sql = f"""
         SELECT
-            id::text AS chunk_id,
-            document_id::text AS doc_id,
-            text,
-            metadata,
-            (embedding <=> '{vec_str}'::vector) AS score
-        FROM chunks
+            c.id::text AS chunk_id,
+            c.document_id::text AS doc_id,
+            COALESCE(d.title, '') AS doc_title,
+            c.text,
+            c.metadata,
+            (c.embedding <=> '{vec_str}'::vector) AS score
+        FROM chunks c
+        LEFT JOIN documents d ON d.id = c.document_id
         WHERE {where_clause}
         ORDER BY score ASC
         LIMIT {limit}
@@ -59,6 +62,7 @@ async def vector_search(
         RankedChunk(
             chunk_id=row["chunk_id"],
             doc_id=row["doc_id"],
+            doc_title=row["doc_title"] or "",
             text=row["text"],
             score=float(row["score"]),
             metadata=row["metadata"] if isinstance(row["metadata"], dict) else {},

@@ -28,6 +28,7 @@ export default function AskPage() {
   const [citations, setCitations] = useState<Citation[]>([]);
   const [partialCompliance, setPartialCompliance] = useState(false);
   const [streaming, setStreaming] = useState(false);
+  const [fillValue, setFillValue] = useState("");
 
   function handleStreamChunk(chunk: string) {
     setStreamText((prev) => prev + chunk);
@@ -68,6 +69,7 @@ export default function AskPage() {
       {/* Question input */}
       <ChatBox
         mode={mode}
+        fillValue={fillValue}
         onStart={handleStart}
         onChunk={handleStreamChunk}
         onComplete={handleComplete}
@@ -77,16 +79,17 @@ export default function AskPage() {
       {!hasResult && (
         <div className="mt-6">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Example questions
+            Example questions — click to fill
           </p>
           <div className="flex flex-wrap gap-2">
             {EXAMPLE_QUESTIONS.map((q) => (
-              <span
+              <button
                 key={q}
-                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 shadow-sm"
+                onClick={() => setFillValue(q)}
+                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors"
               >
                 {q}
-              </span>
+              </button>
             ))}
           </div>
         </div>

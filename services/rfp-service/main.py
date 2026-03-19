@@ -9,19 +9,23 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.config import get_settings
-from common.db import get_db, get_engine
+from common.db import get_db, get_engine, get_session_factory
 from common.logging import get_logger
 from questionnaire import QuestionnaireCompletionAgent
 from rfp_crud import (
     AddQuestionsRequest,
     CreateRFPRequest,
+    UpdateRFPRequest,
     add_questions,
     approve_answer,
     create_rfp,
+    delete_rfp,
     generate_answer,
     get_rfp,
     list_rfps,
+    regenerate_all_answers,
     update_answer,
+    update_rfp,
 )
 
 logger = get_logger("rfp-service")
@@ -98,6 +102,47 @@ async def get_rfp_endpoint(
     return await get_rfp(db, rfp_id, user_id=caller.user_id, role=caller.role)
 
 
+@app.patch("/rfps/{rfp_id}")
+async def update_rfp_endpoint(
+    request: Request,
+    rfp_id: str,
+    req: UpdateRFPRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    caller = _get_caller(request)
+    return await update_rfp(db, rfp_id, req, user_id=caller.user_id, role=caller.role)
+
+
+@app.delete("/rfps/{rfp_id}", status_code=204)
+async def delete_rfp_endpoint(
+    request: Request,
+    rfp_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    caller = _get_caller(request)
+    await delete_rfp(db, rfp_id, user_id=caller.user_id, role=caller.role)
+
+
+class RegenerateAllRequest(BaseModel):
+    detail_level: Literal["minimal", "balanced", "detailed"] = "balanced"
+    user_context: dict = {}
+
+
+@app.post("/rfps/{rfp_id}/regenerate-all", status_code=202)
+async def regenerate_all_endpoint(
+    rfp_id: str,
+    req: RegenerateAllRequest,
+    background_tasks: BackgroundTasks,
+):
+    async def _run():
+        factory = get_session_factory()
+        async with factory() as db:
+            await regenerate_all_answers(db, rfp_id, req.detail_level, req.user_context)
+
+    background_tasks.add_task(_run)
+    return {"status": "regenerating", "rfp_id": rfp_id}
+
+
 @app.get("/rfps")
 async def list_rfps_endpoint(
     request: Request,
@@ -110,6 +155,20 @@ async def list_rfps_endpoint(
 
 
 # --- Questions ---
+
+@app.get("/rfps/{rfp_id}/questions")
+async def list_questions_endpoint(
+    rfp_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import text as sqlt
+    rows = await db.execute(
+        sqlt("SELECT id, rfp_id, question FROM rfp_questions WHERE rfp_id = :rfp_id ORDER BY created_at"),
+        {"rfp_id": rfp_id},
+    )
+    return [{"id": str(r["id"]), "rfp_id": str(r["rfp_id"]), "question": r["question"]}
+            for r in rows.mappings().all()]
+
 
 @app.post("/rfps/{rfp_id}/questions", status_code=201)
 async def add_questions_endpoint(
@@ -157,6 +216,27 @@ async def approve_answer_endpoint(
 ):
     await approve_answer(db, answer_id)
     return {"status": "approved"}
+
+
+@app.get("/rfps/{rfp_id}/questions/{question_id}/answers/latest")
+async def get_latest_answer_endpoint(
+    rfp_id: str,
+    question_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import text as sqlt
+    row = await db.execute(
+        sqlt(
+            "SELECT id, question_id, answer, approved, version, confidence, detail_level, partial_compliance "
+            "FROM rfp_answers WHERE question_id = :qid ORDER BY version DESC LIMIT 1"
+        ),
+        {"qid": question_id},
+    )
+    r = row.mappings().first()
+    if not r:
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(404, "No answer found")
+    return dict(r)
 
 
 @app.get("/rfps/{rfp_id}/questions/{question_id}/answers")

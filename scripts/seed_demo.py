@@ -831,7 +831,7 @@ async def seed():
                 "product": doc["product"],
                 "approved": True,
                 "allowed_roles": ["system_admin", "content_admin", "end_user"],
-                "allowed_teams": [eng_team_id, sales_team_id, presales_team_id],
+                "allowed_teams": [],  # empty = accessible to all authenticated users
             }
 
             row = await db.execute(

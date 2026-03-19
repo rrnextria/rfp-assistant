@@ -6,7 +6,7 @@ from base import AdapterError, GenerateResult, ModelAdapter
 
 
 class ClaudeAdapter(ModelAdapter):
-    def __init__(self, model: str = "claude-3-5-sonnet-20241022", api_key: str = "") -> None:
+    def __init__(self, model: str = "claude-sonnet-4-6", api_key: str = "") -> None:
         self._model = model
         self._api_key = api_key
 

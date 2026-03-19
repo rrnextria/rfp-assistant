@@ -48,6 +48,7 @@ def reciprocal_rank_fusion(
         result.append(RankedChunk(
             chunk_id=chunk.chunk_id,
             doc_id=chunk.doc_id,
+            doc_title=chunk.doc_title,
             text=chunk.text,
             score=scores[cid],
             metadata=chunk.metadata,

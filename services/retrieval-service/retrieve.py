@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.embedder import SentenceTransformerEmbedder
@@ -31,11 +29,9 @@ async def retrieve(
     # Embed query
     query_embedding = _embedder.embed([query])[0]
 
-    # Run searches in parallel
-    vec_results, kw_results = await asyncio.gather(
-        vector_search(db, query_embedding, user_ctx, filters, limit=50),
-        keyword_search(db, query, user_ctx, limit=50),
-    )
+    # Run searches sequentially (same session cannot be used concurrently)
+    vec_results = await vector_search(db, query_embedding, user_ctx, filters, limit=50)
+    kw_results = await keyword_search(db, query, user_ctx, limit=50)
 
     # Fuse and re-rank
     return reciprocal_rank_fusion(

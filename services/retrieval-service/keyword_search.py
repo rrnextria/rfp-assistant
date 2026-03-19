@@ -28,14 +28,16 @@ async def keyword_search(
 
     sql = f"""
         SELECT
-            id::text AS chunk_id,
-            document_id::text AS doc_id,
-            text,
-            metadata,
-            ts_rank_cd(text_search, plainto_tsquery('english', '{safe_query}')) AS score
-        FROM chunks
+            c.id::text AS chunk_id,
+            c.document_id::text AS doc_id,
+            COALESCE(d.title, '') AS doc_title,
+            c.text,
+            c.metadata,
+            ts_rank_cd(c.text_search, plainto_tsquery('english', '{safe_query}')) AS score
+        FROM chunks c
+        LEFT JOIN documents d ON d.id = c.document_id
         WHERE {rbac_where}
-          AND text_search @@ plainto_tsquery('english', '{safe_query}')
+          AND c.text_search @@ plainto_tsquery('english', '{safe_query}')
         ORDER BY score DESC
         LIMIT {limit}
     """
@@ -47,6 +49,7 @@ async def keyword_search(
         RankedChunk(
             chunk_id=row["chunk_id"],
             doc_id=row["doc_id"],
+            doc_title=row["doc_title"] or "",
             text=row["text"],
             score=float(row["score"]),
             metadata=row["metadata"] if isinstance(row["metadata"], dict) else {},

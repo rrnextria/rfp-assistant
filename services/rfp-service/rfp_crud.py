@@ -18,6 +18,13 @@ class CreateRFPRequest(BaseModel):
     region: str = ""
 
 
+class UpdateRFPRequest(BaseModel):
+    customer: str | None = None
+    industry: str | None = None
+    region: str | None = None
+    status: str | None = None
+
+
 class AddQuestionsRequest(BaseModel):
     questions: list[str]
 
@@ -40,13 +47,13 @@ async def create_rfp(db: AsyncSession, req: CreateRFPRequest, user_id: str) -> s
 
 async def get_rfp(db: AsyncSession, rfp_id: str, user_id: str, role: str) -> dict:
     row = await db.execute(
-        text("SELECT id, customer, industry, region, created_by FROM rfps WHERE id = :id"),
+        text("SELECT id, customer, industry, region, status, created_by, created_at FROM rfps WHERE id = :id"),
         {"id": rfp_id},
     )
     rfp = row.mappings().first()
     if not rfp:
         raise HTTPException(404, "RFP not found")
-    if role != "system_admin" and str(rfp["created_by"]) != user_id:
+    if role not in ("system_admin", "content_admin") and str(rfp["created_by"]) != user_id:
         raise HTTPException(403, "Access denied")
 
     # Get questions with latest answers
@@ -68,18 +75,81 @@ async def get_rfp(db: AsyncSession, rfp_id: str, user_id: str, role: str) -> dic
         "customer": rfp["customer"],
         "industry": rfp["industry"],
         "region": rfp["region"],
+        "status": rfp.get("status", "draft"),
+        "created_at": rfp["created_at"].isoformat() if rfp.get("created_at") else None,
         "questions": questions,
     }
 
 
+async def update_rfp(
+    db: AsyncSession, rfp_id: str, req: UpdateRFPRequest, user_id: str, role: str
+) -> dict:
+    row = await db.execute(
+        text("SELECT id, created_by FROM rfps WHERE id = :id"), {"id": rfp_id}
+    )
+    rfp = row.mappings().first()
+    if not rfp:
+        raise HTTPException(404, "RFP not found")
+    if role not in ("system_admin", "content_admin") and str(rfp["created_by"]) != user_id:
+        raise HTTPException(403, "Access denied")
+
+    updates = []
+    params: dict = {"id": rfp_id}
+    if req.customer is not None:
+        updates.append("customer = :customer")
+        params["customer"] = req.customer
+    if req.industry is not None:
+        updates.append("industry = :industry")
+        params["industry"] = req.industry
+    if req.region is not None:
+        updates.append("region = :region")
+        params["region"] = req.region
+    if req.status is not None:
+        if req.status not in ("draft", "approved", "in_review"):
+            raise HTTPException(400, "Invalid status")
+        updates.append("status = :status")
+        params["status"] = req.status
+
+    if updates:
+        await db.execute(
+            text(f"UPDATE rfps SET {', '.join(updates)} WHERE id = :id"),
+            params,
+        )
+        await db.commit()
+
+    return {"rfp_id": rfp_id, "updated": True}
+
+
+async def delete_rfp(db: AsyncSession, rfp_id: str, user_id: str, role: str) -> None:
+    row = await db.execute(
+        text("SELECT id, created_by FROM rfps WHERE id = :id"), {"id": rfp_id}
+    )
+    rfp = row.mappings().first()
+    if not rfp:
+        raise HTTPException(404, "RFP not found")
+    if role not in ("system_admin", "content_admin") and str(rfp["created_by"]) != user_id:
+        raise HTTPException(403, "Access denied")
+
+    # Cascade: delete answers → questions → rfp
+    await db.execute(
+        text(
+            "DELETE FROM rfp_answers WHERE question_id IN "
+            "(SELECT id FROM rfp_questions WHERE rfp_id = :id)"
+        ),
+        {"id": rfp_id},
+    )
+    await db.execute(text("DELETE FROM rfp_questions WHERE rfp_id = :id"), {"id": rfp_id})
+    await db.execute(text("DELETE FROM rfps WHERE id = :id"), {"id": rfp_id})
+    await db.commit()
+
+
 async def list_rfps(
-    db: AsyncSession, user_id: str, role: str = "end_user", limit: int = 20, offset: int = 0
+    db: AsyncSession, user_id: str, role: str = "end_user", limit: int = 50, offset: int = 0
 ) -> list[dict]:
-    # system_admin and content_admin see all RFPs; end_users see only their own
     if role in ("system_admin", "content_admin"):
         rows = await db.execute(
             text(
-                "SELECT id, customer, industry, region, created_at "
+                "SELECT id, customer, industry, region, status, created_at "
                 "FROM rfps ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
             ),
             {"limit": limit, "offset": offset},
@@ -87,26 +157,32 @@ async def list_rfps(
     else:
         rows = await db.execute(
             text(
-                "SELECT id, customer, industry, region, created_at "
+                "SELECT id, customer, industry, region, status, created_at "
                 "FROM rfps WHERE created_by = :uid "
                 "ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
             ),
             {"uid": user_id, "limit": limit, "offset": offset},
         )
-    return [dict(r) for r in rows.mappings().all()]
+    result = []
+    for r in rows.mappings().all():
+        d = dict(r)
+        if d.get("created_at"):
+            d["created_at"] = d["created_at"].isoformat()
+        d["id"] = str(d["id"])
+        result.append(d)
+    return result
 
 
 async def add_questions(
     db: AsyncSession, rfp_id: str, questions: list[str], user_id: str, role: str
 ) -> list[str]:
-    # Check ownership
     row = await db.execute(
         text("SELECT created_by FROM rfps WHERE id = :id"), {"id": rfp_id}
     )
     rfp = row.mappings().first()
     if not rfp:
         raise HTTPException(404, "RFP not found")
-    if role != "system_admin" and str(rfp["created_by"]) != user_id:
+    if role not in ("system_admin", "content_admin") and str(rfp["created_by"]) != user_id:
         raise HTTPException(403, "Access denied")
 
     ids = []
@@ -125,7 +201,6 @@ async def generate_answer(
     db: AsyncSession, rfp_id: str, question_id: str, detail_level: str, user_context: dict
 ) -> str:
     """Call ask_pipeline and store result as rfp_answer version 1 (or N+1)."""
-    # Get question text
     row = await db.execute(
         text("SELECT question FROM rfp_questions WHERE id = :id AND rfp_id = :rfp_id"),
         {"id": question_id, "rfp_id": rfp_id},
@@ -161,7 +236,6 @@ async def generate_answer(
     citations = data.get("citations", [])
     partial = len(citations) < 2
 
-    # Get current max version
     ver_row = await db.execute(
         text("SELECT MAX(version) as max_v FROM rfp_answers WHERE question_id = :qid"),
         {"qid": question_id},
@@ -189,11 +263,32 @@ async def generate_answer(
     return answer_id
 
 
+async def regenerate_all_answers(
+    db: AsyncSession, rfp_id: str, detail_level: str = "balanced", user_context: dict = {}
+) -> dict:
+    """Regenerate answers for all questions in an RFP. Returns counts."""
+    rows = await db.execute(
+        text("SELECT id FROM rfp_questions WHERE rfp_id = :rfp_id ORDER BY created_at"),
+        {"rfp_id": rfp_id},
+    )
+    question_ids = [str(r["id"]) for r in rows.mappings().all()]
+
+    succeeded = 0
+    failed = 0
+    for qid in question_ids:
+        try:
+            await generate_answer(db, rfp_id, qid, detail_level, user_context)
+            succeeded += 1
+        except Exception as exc:
+            logger.error(f"Failed to regenerate answer for question {qid}: {exc}")
+            failed += 1
+
+    return {"regenerated": succeeded, "failed": failed, "total": len(question_ids)}
+
+
 async def update_answer(
     db: AsyncSession, question_id: str, answer_id: str, answer_text: str, expected_version: int
 ) -> str:
-    """Optimistic-lock update: insert new version if expected_version matches latest."""
-    # Check current version
     row = await db.execute(
         text("SELECT MAX(version) as max_v FROM rfp_answers WHERE question_id = :qid"),
         {"qid": question_id},

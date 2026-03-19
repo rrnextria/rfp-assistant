@@ -38,6 +38,32 @@ async def healthz():
     return {"status": "ok", "service": "content-service"}
 
 
+@app.get("/documents")
+async def list_documents(
+    db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
+):
+    """List all documents with status."""
+    rows = await db.execute(
+        text(
+            "SELECT id, title, status, created_by, created_at "
+            "FROM documents ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+        ),
+        {"limit": limit, "offset": offset},
+    )
+    return [
+        {
+            "id": str(r["id"]),
+            "title": r["title"],
+            "status": r["status"],
+            "created_by": str(r["created_by"]) if r["created_by"] else None,
+            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows.mappings().all()
+    ]
+
+
 @app.post("/documents", status_code=201)
 async def upload_document(
     background_tasks: BackgroundTasks,
@@ -85,6 +111,22 @@ async def upload_document(
     return {"document_id": document_id}
 
 
+@app.delete("/documents/{document_id}", status_code=204)
+async def delete_document(
+    document_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a document and all its chunks."""
+    row = await db.execute(
+        text("SELECT id FROM documents WHERE id = :id"), {"id": document_id}
+    )
+    if not row.first():
+        raise HTTPException(404, "Document not found")
+    await db.execute(text("DELETE FROM chunks WHERE document_id = :id"), {"id": document_id})
+    await db.execute(text("DELETE FROM documents WHERE id = :id"), {"id": document_id})
+    await db.commit()
+
+
 @app.patch("/documents/{document_id}/approve")
 async def approve_document(
     document_id: str,
@@ -104,7 +146,7 @@ async def approve_document(
     )
     await db.execute(
         text(
-            "UPDATE chunks SET metadata = metadata || '{\"approved\":true}' "
+            "UPDATE chunks SET metadata = metadata || jsonb_build_object('approved', true) "
             "WHERE document_id = :doc_id"
         ),
         {"doc_id": document_id},

@@ -22,8 +22,7 @@ export default function CitationsPanel({ citations }: Props) {
             </span>
             <div className="min-w-0">
               <p className="truncate text-xs font-medium text-muted-foreground">
-                {c.doc_id}
-                <span className="ml-2 font-normal opacity-70">chunk {c.chunk_id}</span>
+                {c.doc_title || "Knowledge Base Document"}
               </p>
               <p className="mt-1 text-sm leading-relaxed text-foreground line-clamp-3">
                 {c.snippet}

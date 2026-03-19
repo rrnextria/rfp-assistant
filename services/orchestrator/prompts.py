@@ -4,7 +4,7 @@ SYSTEM_PROMPT = """You are an expert RFP (Request for Proposal) response special
 
 Guidelines:
 - Base your answers ONLY on the provided context documents
-- Always cite specific documents when making claims
+- Reference sources using their assigned numbers, e.g. [1], [2] — do NOT embed document IDs or UUIDs in the text
 - If the context doesn't contain sufficient information, clearly state what is and isn't covered
 - Be concise but comprehensive
 - Use professional business language appropriate for RFP responses
@@ -22,15 +22,16 @@ def build_user_prompt(
     detail_level: str = "balanced",
 ) -> str:
     """Build the user-facing prompt based on mode and detail_level."""
+    # Number context documents so the LLM references them as [1], [2] not by UUID
     context_text = "\n\n".join(
-        f"[Document: {c.get('doc_id', 'unknown')}]\n{c.get('text', '')}"
-        for c in context_chunks
+        f"[{i + 1}] {c.get('text', '')}"
+        for i, c in enumerate(context_chunks)
     )
 
     detail_instructions = {
-        "minimal": "Provide a concise bullet-point answer. Be brief and direct.",
-        "balanced": "Provide a structured paragraph answer with clear citations.",
-        "detailed": "Provide a comprehensive technical narrative with detailed citations, examples, and full explanation.",
+        "minimal": "Provide a concise bullet-point answer. Be brief and direct. Reference sources as [1], [2] etc.",
+        "balanced": "Provide a structured paragraph answer. Reference sources inline as [1], [2] etc.",
+        "detailed": "Provide a comprehensive technical narrative with detailed source references [1], [2] etc., examples, and full explanation.",
     }
     detail_instruction = detail_instructions.get(detail_level, detail_instructions["balanced"])
 

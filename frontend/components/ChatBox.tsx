@@ -1,20 +1,25 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { createParser } from "eventsource-parser";
 import type { AskMode, Citation, AskResponse } from "@/lib/api";
 
 interface Props {
   mode: AskMode;
   rfpId?: string;
+  fillValue?: string;
   onStart: () => void;
   onChunk: (chunk: string) => void;
   onComplete: (citations: Citation[], partialCompliance: boolean) => void;
 }
 
-export default function ChatBox({ mode, rfpId, onStart, onChunk, onComplete }: Props) {
+export default function ChatBox({ mode, rfpId, fillValue, onStart, onChunk, onComplete }: Props) {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (fillValue) setQuestion(fillValue);
+  }, [fillValue]);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 

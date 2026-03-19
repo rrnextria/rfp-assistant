@@ -49,6 +49,7 @@ services:
       dockerfile: services/orchestrator/Dockerfile
     volumes:
       - ./services/orchestrator:/app
+      - ./services/adapters:/app/adapters
       - ./common:/common
     ports:
       - "8001:8001"

@@ -34,6 +34,7 @@ class Citation:
     chunk_id: str
     doc_id: str
     snippet: str
+    doc_title: str = ""
 
 
 @dataclass
@@ -57,7 +58,11 @@ async def call_retrieval_service(
 
     payload = {
         "query": question,
-        "user_context": user_context,
+        "user_context": {
+            "user_id": user_context.get("user_id", ""),
+            "role": user_context.get("role", "end_user"),
+            "teams": user_context.get("teams", []),
+        },
         "filters": filters or {},
         "top_n": top_n,
         "score_adjustments": score_adjustments or {},
@@ -79,6 +84,7 @@ def assemble_citations(chunks: list[dict]) -> list[Citation]:
         Citation(
             chunk_id=c["chunk_id"],
             doc_id=c["doc_id"],
+            doc_title=c.get("doc_title", ""),
             snippet=c["text"][:200],
         )
         for c in chunks

@@ -43,6 +43,7 @@ class RetrieveRequest(BaseModel):
 class ChunkResult(BaseModel):
     chunk_id: str
     doc_id: str
+    doc_title: str = ""
     text: str
     score: float
     metadata: dict[str, Any]
@@ -83,6 +84,7 @@ async def retrieve_endpoint(
             ChunkResult(
                 chunk_id=c.chunk_id,
                 doc_id=c.doc_id,
+                doc_title=c.doc_title,
                 text=c.text,
                 score=c.score,
                 metadata=c.metadata,

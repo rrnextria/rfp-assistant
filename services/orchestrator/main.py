@@ -37,6 +37,7 @@ class AskRequest(BaseModel):
 class CitationOut(BaseModel):
     chunk_id: str
     doc_id: str
+    doc_title: str = ""
     snippet: str
 
 
@@ -69,7 +70,7 @@ async def ask(
 
     return AskResponseOut(
         answer=result.answer,
-        citations=[CitationOut(chunk_id=c.chunk_id, doc_id=c.doc_id, snippet=c.snippet) for c in result.citations],
+        citations=[CitationOut(chunk_id=c.chunk_id, doc_id=c.doc_id, doc_title=c.doc_title, snippet=c.snippet) for c in result.citations],
         confidence=result.confidence,
         model=result.model,
     )

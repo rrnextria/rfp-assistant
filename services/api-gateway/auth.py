@@ -21,6 +21,7 @@ from common.logging import get_logger
 logger = get_logger("api-gateway.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
+companies_router = APIRouter(prefix="/companies", tags=["companies"])
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer(auto_error=False)
@@ -82,13 +83,20 @@ def decode_token(token: str) -> dict:
 # --- Auth dependency ---
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    if credentials is None:
+    # Accept token from Authorization header OR httpOnly cookie
+    token: str | None = None
+    if credentials:
+        token = credentials.credentials
+    if not token:
+        token = request.cookies.get("access_token")
+    if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
-        payload = decode_token(credentials.credentials)
+        payload = decode_token(token)
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -109,6 +117,37 @@ async def get_current_user(
 
 
 # --- Endpoints ---
+
+@users_router.get("")
+async def list_users(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """List all users (system_admin only)."""
+    if current_user["role"] != "system_admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    rows = await db.execute(
+        text("SELECT u.id, u.email, u.name, u.role FROM users u ORDER BY u.email")
+    )
+    users = []
+    for row in rows.mappings().all():
+        teams_result = await db.execute(
+            text(
+                "SELECT t.name FROM teams t "
+                "JOIN user_teams ut ON t.id = ut.team_id WHERE ut.user_id = :uid"
+            ),
+            {"uid": str(row["id"])},
+        )
+        teams = [r[0] for r in teams_result.fetchall()]
+        users.append({
+            "id": str(row["id"]),
+            "email": row["email"],
+            "name": row["name"],
+            "role": row["role"],
+            "teams": teams,
+        })
+    return users
+
 
 @users_router.post("", status_code=201)
 async def create_user(req: CreateUserRequest, db: AsyncSession = Depends(get_db)):
@@ -164,3 +203,59 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+
+# --- Companies ---
+
+class CreateCompanyRequest(BaseModel):
+    name: str
+
+
+@companies_router.get("")
+async def list_companies(db: AsyncSession = Depends(get_db)):
+    """List all companies (public — used for RFP customer dropdown)."""
+    rows = await db.execute(
+        text("SELECT id, name FROM companies ORDER BY name")
+    )
+    return [{"id": str(r["id"]), "name": r["name"]} for r in rows.mappings().all()]
+
+
+@companies_router.post("", status_code=201)
+async def create_company(
+    req: CreateCompanyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Create a company (system_admin only)."""
+    if current_user["role"] != "system_admin":
+        raise HTTPException(403, "Forbidden")
+    existing = await db.execute(
+        text("SELECT id FROM companies WHERE name = :name"), {"name": req.name}
+    )
+    if existing.first():
+        raise HTTPException(409, "Company already exists")
+    company_id = str(uuid.uuid4())
+    await db.execute(
+        text("INSERT INTO companies (id, name) VALUES (:id, :name)"),
+        {"id": company_id, "name": req.name},
+    )
+    await db.commit()
+    return {"company_id": company_id, "name": req.name}
+
+
+@companies_router.delete("/{company_id}", status_code=204)
+async def delete_company(
+    company_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a company (system_admin only)."""
+    if current_user["role"] != "system_admin":
+        raise HTTPException(403, "Forbidden")
+    row = await db.execute(
+        text("SELECT id FROM companies WHERE id = :id"), {"id": company_id}
+    )
+    if not row.first():
+        raise HTTPException(404, "Company not found")
+    await db.execute(text("DELETE FROM companies WHERE id = :id"), {"id": company_id})
+    await db.commit()
