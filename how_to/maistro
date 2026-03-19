@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Maistro — resilient launcher for the orchestrator.
+#
+# Usage:  ./how_to/maistro <command> [args...]
+#
+# Sets PYTHONPATH, finds the best Python 3.10+, and hands off to the
+# orchestrator's bootstrap gate.  Supports symlinks from the repo root:
+#   ln -s how_to/maistro ./maistro
+set -euo pipefail
+
+# ── Resolve through symlinks (supports ln -s how_to/maistro ./maistro) ──
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+    DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+
+# ── Python discovery: prefer highest available, floor at 3.10 ──
+# Override with MAISTRO_PYTHON=/path/to/python if auto-detection picks wrong
+if [[ -n "${MAISTRO_PYTHON:-}" ]] && command -v "$MAISTRO_PYTHON" &>/dev/null; then
+    PYTHON="$MAISTRO_PYTHON"
+else
+    PYTHON=""
+    for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
+        if command -v "$candidate" &>/dev/null; then
+            if "$candidate" -c "import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)" 2>/dev/null; then
+                PYTHON="$candidate"
+                break
+            fi
+        fi
+    done
+fi
+
+if [[ -z "$PYTHON" ]]; then
+    echo "maistro: Python 3.10+ required but not found on PATH." >&2
+    echo "  Tried: python3.13, python3.12, python3.11, python3.10, python3" >&2
+    echo "  Fix:   sudo apt install python3 python3-venv python3-pip" >&2
+    echo "  Or:    export MAISTRO_PYTHON=/path/to/python3.x" >&2
+    exit 1
+fi
+
+# ── Launch: set PYTHONPATH, hand off to bootstrap gate ──
+export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+exec "$PYTHON" -m orchestrator_v3 "$@"

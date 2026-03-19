@@ -1,0 +1,13 @@
+{
+  "slug": "rfp_assistant",
+  "phase": 0,
+  "task": 1,
+  "mode": "code",
+  "current_round": 1,
+  "status": "needs_review",
+  "plan_file": "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/rfp_assistant_master_plan.md",
+  "code_artifact_hash": "94ac37ea0d07b6bd15d02537f48174f3c59642e7ffed3501e816e6b179c1a8cc",
+  "started_at": "2026-03-19T00:58:22.967133+00:00",
+  "last_updated": "2026-03-19T00:58:41.540464+00:00",
+  "history": []
+}

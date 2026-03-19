@@ -1,0 +1,1 @@
+# Copilot channel adapter package

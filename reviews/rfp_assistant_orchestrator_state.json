@@ -1,0 +1,176 @@
+{
+  "plan_slug": "rfp_assistant",
+  "mode": "plan",
+  "plan_file": "active_plans/rfp_assistant/rfp_assistant_master_plan.md",
+  "plan_type": "complex",
+  "current_phase": 10,
+  "current_task": 1,
+  "current_round": 2,
+  "status": "approved",
+  "started_at": "2026-03-18T20:54:30.740711+00:00",
+  "last_updated": "2026-03-19T00:47:35.398999+00:00",
+  "total_phases": 11,
+  "tasks_per_phase": {},
+  "current_stage": 10,
+  "total_stages": 11,
+  "stage_files": [
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_0_foundation.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_1_auth_rbac.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_2_content_ingestion.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_3_retrieval.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_4_orchestrator_models.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_5_rfp_service.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_6_frontend.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_7_copilot_adapter.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_8_portfolio_orchestration.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/phases/phase_9_win_loss_learning.md",
+    "/home/ravi/git/rfp-assistant/active_plans/rfp_assistant/rfp_assistant_master_plan.md"
+  ],
+  "code_artifact_hash": null,
+  "history": [
+    {
+      "stage": 0,
+      "stage_label": "phase_0_foundation",
+      "round": 1,
+      "verdict": "FIXES_REQUIRED",
+      "review_file": "reviews/rfp_assistant_phase_0_foundation_review_round1.md",
+      "update_file": "reviews/rfp_assistant_phase_0_foundation_update_round1.md",
+      "timestamp": "2026-03-18T21:00:00.000000+00:00"
+    },
+    {
+      "stage": 0,
+      "stage_label": "phase_0_foundation",
+      "round": 2,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_0_foundation_review_round2.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T21:10:00.000000+00:00"
+    },
+    {
+      "stage": 1,
+      "stage_label": "phase_1_auth_rbac",
+      "round": 1,
+      "verdict": "FIXES_REQUIRED",
+      "review_file": "reviews/rfp_assistant_phase_1_auth_rbac_review_round1.md",
+      "update_file": "reviews/rfp_assistant_phase_1_auth_rbac_update_round1.md",
+      "timestamp": "2026-03-18T21:20:00.000000+00:00"
+    },
+    {
+      "stage": 1,
+      "stage_label": "phase_1_auth_rbac",
+      "round": 2,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_1_auth_rbac_review_round2.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T21:30:00.000000+00:00"
+    },
+    {
+      "stage": 2,
+      "stage_label": "phase_2_content_ingestion",
+      "round": 1,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_2_content_ingestion_review_round1.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T21:40:00.000000+00:00"
+    },
+    {
+      "stage": 3,
+      "stage_label": "phase_3_retrieval",
+      "round": 1,
+      "verdict": "FIXES_REQUIRED",
+      "review_file": "reviews/rfp_assistant_phase_3_retrieval_review_round1.md",
+      "update_file": "reviews/rfp_assistant_phase_3_retrieval_update_round1.md",
+      "timestamp": "2026-03-18T21:50:00.000000+00:00"
+    },
+    {
+      "stage": 3,
+      "stage_label": "phase_3_retrieval",
+      "round": 2,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_3_retrieval_review_round2.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T22:00:00.000000+00:00"
+    },
+    {
+      "stage": 4,
+      "stage_label": "phase_4_orchestrator_models",
+      "round": 1,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_4_orchestrator_models_review_round1.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T22:10:00.000000+00:00"
+    },
+    {
+      "stage": 5,
+      "stage_label": "phase_5_rfp_service",
+      "round": 1,
+      "verdict": "FIXES_REQUIRED",
+      "review_file": "reviews/rfp_assistant_phase_5_rfp_service_review_round1.md",
+      "update_file": "reviews/rfp_assistant_phase_5_rfp_service_update_round1.md",
+      "timestamp": "2026-03-18T22:20:00.000000+00:00"
+    },
+    {
+      "stage": 5,
+      "stage_label": "phase_5_rfp_service",
+      "round": 2,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_5_rfp_service_review_round2.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T22:30:00.000000+00:00"
+    },
+    {
+      "stage": 6,
+      "stage_label": "phase_6_frontend",
+      "round": 1,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_6_frontend_review_round1.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T22:40:00.000000+00:00"
+    },
+    {
+      "stage": 7,
+      "stage_label": "phase_7_copilot_adapter",
+      "round": 1,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_7_copilot_adapter_review_round1.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T22:50:00.000000+00:00"
+    },
+    {
+      "stage": 8,
+      "stage_label": "phase_8_portfolio_orchestration",
+      "round": 1,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_8_portfolio_orchestration_review_round1.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T23:00:00.000000+00:00"
+    },
+    {
+      "stage": 9,
+      "stage_label": "phase_9_win_loss_learning",
+      "round": 1,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_phase_9_win_loss_learning_review_round1.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T23:10:00.000000+00:00"
+    },
+    {
+      "stage": 10,
+      "stage_label": "rfp_assistant_master_plan",
+      "round": 1,
+      "verdict": "FIXES_REQUIRED",
+      "review_file": "reviews/rfp_assistant_rfp_assistant_master_plan_review_round1.md",
+      "update_file": "reviews/rfp_assistant_rfp_assistant_master_plan_update_round1.md",
+      "timestamp": "2026-03-18T23:20:00.000000+00:00"
+    },
+    {
+      "stage": 10,
+      "stage_label": "rfp_assistant_master_plan",
+      "round": 2,
+      "verdict": "APPROVED",
+      "review_file": "reviews/rfp_assistant_rfp_assistant_master_plan_review_round2.md",
+      "update_file": null,
+      "timestamp": "2026-03-18T23:30:00.000000+00:00"
+    }
+  ]
+}

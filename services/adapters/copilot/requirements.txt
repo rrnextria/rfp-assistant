@@ -1,0 +1,25 @@
+# Bot Framework SDK
+botframework-connector>=4.15.0
+botbuilder-core>=4.15.0
+botbuilder-integration-aiohttp>=4.15.0
+
+# Azure AD / MSAL token acquisition
+msal>=1.28.0
+
+# HTTP client for orchestrator calls
+httpx>=0.27.0
+
+# JWT (internal service token — same library used by api-gateway)
+python-jose[cryptography]>=3.3.0
+
+# FastAPI runtime
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+
+# SQLAlchemy async (for UPN resolution)
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.29.0
+psycopg[binary]>=3.1
+
+# Settings
+pydantic-settings>=2.2.0

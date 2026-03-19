@@ -1,0 +1,159 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: rfpassistant
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rfpassistant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    volumes:
+      - ./services/api-gateway:/app
+      - ./common:/common
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    volumes:
+      - ./services/orchestrator:/app
+      - ./common:/common
+    ports:
+      - "8001:8001"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  retrieval-service:
+    build:
+      context: .
+      dockerfile: services/retrieval-service/Dockerfile
+    volumes:
+      - ./services/retrieval-service:/app
+      - ./common:/common
+    ports:
+      - "8002:8002"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  content-service:
+    build:
+      context: .
+      dockerfile: services/content-service/Dockerfile
+    volumes:
+      - ./services/content-service:/app
+      - ./common:/common
+    ports:
+      - "8003:8003"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rbac-service:
+    build:
+      context: .
+      dockerfile: services/rbac-service/Dockerfile
+    volumes:
+      - ./services/rbac-service:/app
+      - ./common:/common
+    ports:
+      - "8004:8004"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rfp-service:
+    build:
+      context: .
+      dockerfile: services/rfp-service/Dockerfile
+    volumes:
+      - ./services/rfp-service:/app
+      - ./common:/common
+    ports:
+      - "8005:8005"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  model-router:
+    build:
+      context: .
+      dockerfile: services/model-router/Dockerfile
+    volumes:
+      - ./services/model-router:/app
+      - ./common:/common
+    ports:
+      - "8006:8006"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  adapters:
+    build:
+      context: .
+      dockerfile: services/adapters/Dockerfile
+    volumes:
+      - ./services/adapters:/app
+      - ./common:/common
+    ports:
+      - "8007:8007"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: services/audit-service/Dockerfile
+    volumes:
+      - ./services/audit-service:/app
+      - ./common:/common
+    ports:
+      - "8008:8008"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

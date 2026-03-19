@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp:*)",
+      "Bash(git init:*)",
+      "Bash(mkdir -p active_plans reviews research)",
+      "Bash(touch reviews/.gitkeep)",
+      "Bash(./how_to/maistro doctor:*)",
+      "Bash(./how_to/maistro plan-verify:*)",
+      "Bash(./how_to/maistro plan:*)",
+      "Bash(python3 -m json.tool)"
+    ]
+  }
+}
