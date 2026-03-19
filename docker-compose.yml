@@ -27,23 +27,6 @@ services:
       retries: 5
       start_period: 5s
 
-  migrate:
-    build:
-      context: .
-      dockerfile: services/api-gateway/Dockerfile
-    command: >
-      sh -c "pip install alembic psycopg[binary] --quiet &&
-             alembic upgrade head"
-    env_file: .env
-    volumes:
-      - ./migrations:/app/migrations
-      - ./alembic.ini:/app/alembic.ini
-      - ./common:/common
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: "no"
-
   api-gateway:
     build:
       context: .
@@ -59,8 +42,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   orchestrator:
     build:
@@ -78,8 +59,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   retrieval-service:
     build:
@@ -94,8 +73,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   content-service:
     build:
@@ -110,8 +87,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   rbac-service:
     build:
@@ -126,8 +101,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   rfp-service:
     build:
@@ -144,8 +117,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   model-router:
     build:
@@ -160,8 +131,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   adapters:
     build:
@@ -190,8 +159,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   analytics-service:
     build:
@@ -206,8 +173,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   portfolio-service:
     build:
@@ -222,8 +187,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   frontend:
     build:

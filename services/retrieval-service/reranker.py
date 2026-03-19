@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 try:
-    from .vector_search import RankedChunk
+    from vector_search import RankedChunk
 except ImportError:
     from vector_search import RankedChunk  # type: ignore[no-redef]
 

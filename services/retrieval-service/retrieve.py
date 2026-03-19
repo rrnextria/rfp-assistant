@@ -5,10 +5,10 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.embedder import SentenceTransformerEmbedder
-from .keyword_search import keyword_search
-from .rbac_filter import UserContext
-from .reranker import reciprocal_rank_fusion
-from .vector_search import RankedChunk, vector_search
+from keyword_search import keyword_search
+from rbac_filter import UserContext
+from reranker import reciprocal_rank_fusion
+from vector_search import RankedChunk, vector_search
 
 _embedder = SentenceTransformerEmbedder()
 

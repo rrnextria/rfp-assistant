@@ -10,7 +10,7 @@ from common.config import get_settings
 from common.logging import get_logger
 
 try:
-    from .prompts import build_system_prompt, build_user_prompt
+    from prompts import build_system_prompt, build_user_prompt
 except ImportError:
     from prompts import build_system_prompt, build_user_prompt  # type: ignore[no-redef]
 

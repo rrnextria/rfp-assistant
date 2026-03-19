@@ -5,7 +5,7 @@ from typing import AsyncIterator
 
 import httpx
 
-from .base import AdapterError, GenerateResult, ModelAdapter
+from base import AdapterError, GenerateResult, ModelAdapter
 
 
 class OllamaAdapter(ModelAdapter):

@@ -8,9 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.embedder import SentenceTransformerEmbedder
 from common.logging import get_logger
-from .chunker import chunk_sections
-from .parser import parse_pdf, parse_docx
-from .schemas import DocumentMetadata
+from chunker import chunk_sections
+from parser import parse_pdf, parse_docx
+from schemas import DocumentMetadata
 
 logger = get_logger("content-service.ingestion")
 _embedder = SentenceTransformerEmbedder()

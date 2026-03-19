@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 try:
-    from .rbac_filter import UserContext, build_rbac_filter
+    from rbac_filter import UserContext, build_rbac_filter
 except ImportError:
     from rbac_filter import UserContext, build_rbac_filter  # type: ignore[no-redef]
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import tiktoken
 
-from .parser import Section
+from parser import Section
 
 _enc = None
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import AsyncIterator
 
-from .base import AdapterError, GenerateResult, ModelAdapter
+from base import AdapterError, GenerateResult, ModelAdapter
 
 
 class GeminiAdapter(ModelAdapter):
