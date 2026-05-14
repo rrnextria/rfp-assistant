@@ -20,6 +20,7 @@ class RankedChunk:
     metadata: dict
     doc_title: str = ""
     embedding: list[float] | None = None
+    category: str = "general"
 
 
 async def vector_search(
@@ -45,6 +46,7 @@ async def vector_search(
             c.id::text AS chunk_id,
             c.document_id::text AS doc_id,
             COALESCE(d.title, '') AS doc_title,
+            COALESCE(d.category, 'general') AS category,
             c.text,
             c.metadata,
             (c.embedding <=> '{vec_str}'::vector) AS score
@@ -66,6 +68,7 @@ async def vector_search(
             text=row["text"],
             score=float(row["score"]),
             metadata=row["metadata"] if isinstance(row["metadata"], dict) else {},
+            category=row["category"] or "general",
         )
         for row in rows
     ]
