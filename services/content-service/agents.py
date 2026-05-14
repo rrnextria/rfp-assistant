@@ -12,6 +12,30 @@ from common.logging import get_logger
 logger = get_logger("content-service.agents")
 
 
+async def _load_snippet_tag_vocab(db: AsyncSession, tenant_id: str) -> list[str]:
+    """Union of all `metadata.topic_tags` values across approved snippets for
+    the tenant. The vocabulary is defined by the snippet library itself."""
+    rows = await db.execute(
+        text("SELECT c.metadata->'topic_tags' AS tags FROM documents d "
+             "LEFT JOIN chunks c ON c.document_id = d.id "
+             "WHERE d.tenant_id = :t AND d.category = 'boilerplate_snippet' "
+             "AND d.status = 'approved'"),
+        {"t": tenant_id},
+    )
+    vocab: set[str] = set()
+    for r in rows.mappings().all():
+        tags = r["tags"] or []
+        if isinstance(tags, list):
+            vocab.update(str(t).lower() for t in tags)
+    return sorted(vocab)
+
+
+def _classify_tags(requirement_text: str, vocab: list[str]) -> list[str]:
+    """Keyword-match each vocab tag against the requirement text (case-insensitive)."""
+    lc = requirement_text.lower()
+    return [tag for tag in vocab if tag in lc]
+
+
 @dataclass
 class Requirement:
     text: str
@@ -61,30 +85,48 @@ class RequirementExtractionAgent:
     async def extract_and_store(
         self, db: AsyncSession, rfp_id: str, rfp_text: str
     ) -> list[str]:
-        """Extract requirements and insert into rfp_requirements."""
+        """Extract requirements and insert into rfp_requirements.
+
+        Each requirement is tagged against the union of snippet topic_tags
+        defined for the RFP's tenant (the vocabulary is defined by the
+        snippet library itself).
+        """
         requirements = self.extract(rfp_text)
         requirement_ids = []
 
+        # Look up the RFP's tenant_id and the corresponding snippet vocabulary.
+        tenant_row = await db.execute(
+            text("SELECT tenant_id::text AS t FROM rfps WHERE id = :id"),
+            {"id": rfp_id},
+        )
+        tr = tenant_row.mappings().first()
+        vocab: list[str] = []
+        if tr and tr["t"]:
+            vocab = await _load_snippet_tag_vocab(db, tr["t"])
+
         for req in requirements:
             req_id = str(uuid.uuid4())
+            scoring = dict(req.scoring_criteria)
+            scoring["tags"] = _classify_tags(req.text, vocab)
             await db.execute(
                 text(
                     "INSERT INTO rfp_requirements (id, rfp_id, text, category, scoring_criteria, is_questionnaire) "
-                    "VALUES (:id, :rfp_id, :text, :category, :scoring::jsonb, :is_q)"
+                    "VALUES (:id, :rfp_id, :text, :category, CAST(:scoring AS jsonb), :is_q)"
                 ),
                 {
                     "id": req_id,
                     "rfp_id": rfp_id,
                     "text": req.text,
                     "category": req.category,
-                    "scoring": json.dumps(req.scoring_criteria),
+                    "scoring": json.dumps(scoring),
                     "is_q": req.is_questionnaire,
                 },
             )
             requirement_ids.append(req_id)
 
         await db.commit()
-        logger.info(f"Extracted {len(requirements)} requirements for RFP {rfp_id}")
+        logger.info(f"Extracted {len(requirements)} requirements for RFP {rfp_id}; "
+                     f"snippet vocab size: {len(vocab)}")
         return requirement_ids
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -56,6 +57,7 @@ class UserResponse(BaseModel):
     name: str | None
     role: str
     teams: list[str]
+    tenant_id: str
 
 
 # --- Helpers ---
@@ -68,10 +70,12 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(user_id: str, role: str) -> str:
+def create_access_token(user_id: str, role: str, tenant_id: str | None = None) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": user_id, "role": role, "exp": expire}
+    payload: dict = {"sub": user_id, "role": role, "exp": expire}
+    if tenant_id:
+        payload["tenant_id"] = tenant_id
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
@@ -103,7 +107,10 @@ async def get_current_user(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    row = await db.execute(text("SELECT id, email, name, role FROM users WHERE id = :id"), {"id": user_id})
+    row = await db.execute(
+        text("SELECT id, email, name, role, tenant_id FROM users WHERE id = :id"),
+        {"id": user_id},
+    )
     user = row.mappings().first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
@@ -113,7 +120,14 @@ async def get_current_user(
         {"uid": user_id},
     )
     teams = [r[0] for r in teams_result.fetchall()]
-    return {"id": str(user["id"]), "email": user["email"], "name": user["name"], "role": user["role"], "teams": teams}
+    return {
+        "id": str(user["id"]),
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "teams": teams,
+        "tenant_id": str(user["tenant_id"]),
+    }
 
 
 # --- Endpoints ---
@@ -158,25 +172,38 @@ async def create_user(req: CreateUserRequest, db: AsyncSession = Depends(get_db)
     if existing.first():
         raise HTTPException(409, "User with that email already exists")
 
+    # Resolve a tenant for the new user. v1 deploys a single tenant per
+    # instance (e.g. Akkodis); fall back to its row if the request didn't
+    # carry an explicit tenant_id.
+    tenant_row = await db.execute(text("SELECT id FROM tenants ORDER BY created_at LIMIT 1"))
+    tenant = tenant_row.first()
+    if not tenant:
+        raise HTTPException(500, "No tenant configured")
+    tenant_id = str(tenant[0])
+
     user_id = str(uuid.uuid4())
     await db.execute(
         text(
-            "INSERT INTO users (id, email, name, role, password_hash) "
-            "VALUES (:id, :email, :name, :role, :pw)"
+            "INSERT INTO users (id, email, name, role, password_hash, tenant_id) "
+            "VALUES (:id, :email, :name, :role, :pw, :tid)"
         ),
-        {"id": user_id, "email": req.email, "name": req.name, "role": req.role, "pw": hash_password(req.password)},
+        {"id": user_id, "email": req.email, "name": req.name, "role": req.role,
+         "pw": hash_password(req.password), "tid": tenant_id},
     )
 
     for team_name in req.teams:
-        team_row = await db.execute(text("SELECT id FROM teams WHERE name = :name"), {"name": team_name})
+        team_row = await db.execute(
+            text("SELECT id FROM teams WHERE name = :name AND tenant_id = :tid"),
+            {"name": team_name, "tid": tenant_id},
+        )
         team = team_row.first()
         if team:
             team_id = str(team[0])
         else:
             team_id = str(uuid.uuid4())
             await db.execute(
-                text("INSERT INTO teams (id, name) VALUES (:id, :name)"),
-                {"id": team_id, "name": team_name},
+                text("INSERT INTO teams (id, name, tenant_id) VALUES (:id, :name, :tid)"),
+                {"id": team_id, "name": team_name, "tid": tenant_id},
             )
         await db.execute(
             text("INSERT INTO user_teams (user_id, team_id) VALUES (:uid, :tid) ON CONFLICT DO NOTHING"),
@@ -190,13 +217,13 @@ async def create_user(req: CreateUserRequest, db: AsyncSession = Depends(get_db)
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     row = await db.execute(
-        text("SELECT id, role, password_hash FROM users WHERE email = :email"),
+        text("SELECT id, role, password_hash, tenant_id FROM users WHERE email = :email"),
         {"email": req.email},
     )
     user = row.mappings().first()
     if not user or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token(str(user["id"]), user["role"])
+    token = create_access_token(str(user["id"]), user["role"], str(user["tenant_id"]))
     return TokenResponse(access_token=token)
 
 
@@ -259,3 +286,51 @@ async def delete_company(
         raise HTTPException(404, "Company not found")
     await db.execute(text("DELETE FROM companies WHERE id = :id"), {"id": company_id})
     await db.commit()
+
+
+# --- Tenants -----------------------------------------------------------------
+
+tenants_router = APIRouter(prefix="/tenants", tags=["tenants"])
+
+
+@tenants_router.get("/me")
+async def my_tenant(current_user: dict = Depends(get_current_user),
+                      db: AsyncSession = Depends(get_db)):
+    row = await db.execute(
+        text("SELECT id::text AS id, slug, display_name, brand, config "
+             "FROM tenants WHERE id = :id"),
+        {"id": current_user["tenant_id"]},
+    )
+    t = row.mappings().first()
+    if not t:
+        raise HTTPException(404, "Tenant not found")
+    return dict(t)
+
+
+class BrandPatch(BaseModel):
+    logo_url: str | None = None
+    primary_color: str | None = None
+    accent_color: str | None = None
+    report_header: str | None = None
+    report_footer: str | None = None
+
+
+@tenants_router.patch("/me/brand")
+async def patch_brand(req: BrandPatch,
+                       current_user: dict = Depends(get_current_user),
+                       db: AsyncSession = Depends(get_db)):
+    if current_user["role"] != "system_admin":
+        raise HTTPException(403, "Forbidden")
+    row = await db.execute(
+        text("SELECT brand FROM tenants WHERE id = :id"),
+        {"id": current_user["tenant_id"]},
+    )
+    current = dict((row.mappings().first() or {}).get("brand") or {})
+    for k, v in req.model_dump(exclude_none=True).items():
+        current[k] = v
+    await db.execute(
+        text("UPDATE tenants SET brand = CAST(:b AS jsonb) WHERE id = :id"),
+        {"b": json.dumps(current), "id": current_user["tenant_id"]},
+    )
+    await db.commit()
+    return {"brand": current}

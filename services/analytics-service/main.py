@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.db import get_db, get_engine
 from common.logging import get_logger
 from agents import win_loss_agent
+from patterns import compute_patterns, gate_patterns
 
 logger = get_logger("analytics-service")
 
@@ -262,3 +263,31 @@ async def admin_insights(
         top_winning_products=top_winning_products,
         common_gap_areas=common_gap_areas,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /score-boosts — per-tenant patterns with min-N gating
+# ---------------------------------------------------------------------------
+
+@app.get("/score-boosts")
+async def score_boosts(
+    tenant_id: str,
+    db: AsyncSession = Depends(get_db),
+    min_n: int = 20,
+    max_boost: float = 0.10,
+) -> dict:
+    rows = await db.execute(
+        text("SELECT industry_id::text AS industry_id, outcome, value_amount "
+             "FROM past_proposals WHERE tenant_id = :t"),
+        {"t": tenant_id},
+    )
+    raw = [dict(r) for r in rows.mappings().all()]
+    patterns = compute_patterns(raw)
+    gated = gate_patterns(patterns, min_n=min_n, max_boost=max_boost)
+    return {
+        "tenant_id": tenant_id,
+        "min_n": min_n,
+        "max_boost": max_boost,
+        "patterns": gated,
+        "n_total_proposals": len(raw),
+    }

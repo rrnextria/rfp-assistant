@@ -34,6 +34,8 @@ htmlcov/
 node_modules/
 .next/
 out/
+frontend/package-lock.json
+frontend/tsconfig.tsbuildinfo
 
 # OS
 .DS_Store

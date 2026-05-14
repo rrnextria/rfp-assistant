@@ -4,7 +4,7 @@ import json
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +29,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="content-service", lifespan=lifespan)
+
+from snippets import router as snippets_router
+from typed_entities import past_router, contracts_router
+
+app.include_router(snippets_router)
+app.include_router(past_router)
+app.include_router(contracts_router)
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
@@ -69,9 +76,12 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     metadata: str = Form(...),
+    x_tenant_id: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a PDF/DOCX document for ingestion. Requires content_admin role."""
+    if not x_tenant_id:
+        raise HTTPException(401, "X-Tenant-Id header required")
     # Parse metadata
     try:
         meta_dict = json.loads(metadata)
@@ -92,9 +102,11 @@ async def upload_document(
     document_id = str(uuid.uuid4())
     await db.execute(
         text(
-            "INSERT INTO documents (id, title, status) VALUES (:id, :title, 'pending')"
+            "INSERT INTO documents (id, tenant_id, title, status, category) "
+            "VALUES (:id, :tid, :title, 'pending', :cat)"
         ),
-        {"id": document_id, "title": file.filename},
+        {"id": document_id, "tid": x_tenant_id, "title": file.filename,
+         "cat": doc_metadata.category},
     )
     await db.commit()
 

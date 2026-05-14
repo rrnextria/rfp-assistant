@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastapi import Depends, FastAPI
+import httpx
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import text as sqltext
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.config import get_settings
 from common.db import get_db, get_engine
 from common.logging import get_logger
-from pipeline import ask_pipeline
+from pipeline import ask_pipeline, call_retrieval_service
+
+from assessment import stream as sse
+from assessment.agents_bestfit import run_bestfit
+from assessment.agents_compliance import run_compliance
+from assessment.agents_eligibility import run_eligibility
+from assessment.agents_risk import run_risks
+from assessment.agents_summary import generate_summary_prose
+from assessment.pipeline import BidAssessmentPipeline
 
 logger = get_logger("orchestrator")
 
@@ -74,3 +87,154 @@ async def ask(
         confidence=result.confidence,
         model=result.model,
     )
+
+
+# ---------------------------------------------------------------------------
+# Bid assessment endpoints
+# ---------------------------------------------------------------------------
+
+def _ctx(x_tenant_id: str | None = Header(default=None),
+         x_user_id: str | None = Header(default=None)) -> dict:
+    if not x_tenant_id:
+        raise HTTPException(401, "X-Tenant-Id header required")
+    return {"tenant_id": x_tenant_id, "user_id": x_user_id}
+
+
+def _make_llm_client():
+    """Best-effort LLM adapter. Tenants can set LLM_PROVIDER to force a
+    specific provider; otherwise we prefer OpenAI when its key is present
+    (the OpenAI key is more frequently rotated in this deployment), then
+    Anthropic, then None.
+
+    Agents tolerate None by returning empty result sets (status='unknown',
+    etc.), which the pipeline still persists as a `partial` assessment.
+    """
+    s = get_settings()
+    preferred = os.environ.get("LLM_PROVIDER", "").lower()
+    have_openai = bool(getattr(s, "openai_api_key", None))
+    have_anthropic = bool(getattr(s, "anthropic_api_key", None))
+
+    order: list[str] = []
+    if preferred in ("openai", "anthropic"):
+        order.append(preferred)
+    if "openai" not in order and have_openai:
+        order.append("openai")
+    if "anthropic" not in order and have_anthropic:
+        order.append("anthropic")
+
+    for provider in order:
+        try:
+            if provider == "openai" and have_openai:
+                from openai_adapter import OpenAIAdapter
+                return OpenAIAdapter(api_key=s.openai_api_key, model="gpt-4o")
+            if provider == "anthropic" and have_anthropic:
+                from claude import ClaudeAdapter
+                return ClaudeAdapter(api_key=s.anthropic_api_key,
+                                      model="claude-sonnet-4-6")
+        except Exception:
+            continue
+    return None
+
+
+@app.post("/assess/run")
+async def assess_run(
+    body: dict = Body(...),
+    ctx: dict = Depends(_ctx),
+    db: AsyncSession = Depends(get_db),
+):
+    rfp_id = body.get("rfp_id")
+    if not rfp_id:
+        raise HTTPException(400, "rfp_id required")
+
+    cap_url = os.environ.get("CAPABILITY_SERVICE_URL",
+                              "http://capability-service:8010")
+    analytics_url = os.environ.get("ANALYTICS_SERVICE_URL",
+                                     "http://analytics-service:8009")
+    llm = _make_llm_client()
+
+    # Best-effort fetch of the tenant-wide analytics boost. The min-N gate
+    # in analytics-service guarantees inactive patterns emit boost=0, so a
+    # cold-start tenant sees no learned adjustment.
+    boost = 0.0
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get(f"{analytics_url}/score-boosts",
+                              params={"tenant_id": ctx["tenant_id"]})
+            if r.status_code == 200:
+                active = [p["boost"] for p in r.json().get("patterns", [])
+                          if p.get("active")]
+                if active:
+                    boost = max(active)
+    except Exception:
+        pass
+
+    async def _compliance_fn(requirements, tenant_id):
+        return await run_compliance(
+            rfp_id=rfp_id, requirements=requirements, tenant_id=tenant_id,
+            retrieval_call=call_retrieval_service, llm_client=llm)
+
+    async def _elig_fn(raw_text, tenant_id):
+        return await run_eligibility(
+            rfp_id=rfp_id, raw_text=raw_text, tenant_id=tenant_id,
+            capability_url=cap_url, llm_client=llm)
+
+    async def _bestfit_fn(requirements, tenant_id):
+        return await run_bestfit(
+            requirements=requirements, tenant_id=tenant_id,
+            capability_url=cap_url)
+
+    async def _risk_fn(raw_text, requirements, compliance, eligibility, best_fit):
+        return await run_risks(
+            raw_text=raw_text, requirements=requirements,
+            compliance=compliance, eligibility=eligibility,
+            best_fit=best_fit, llm_client=llm)
+
+    async def _summary_fn(rollup, compliance, eligibility, risks):
+        return await generate_summary_prose(
+            rollup=rollup, compliance=compliance, eligibility=eligibility,
+            risks=risks, llm_client=llm)
+
+    pipeline = BidAssessmentPipeline(
+        compliance_agent=_compliance_fn,
+        eligibility_agent=_elig_fn,
+        bestfit_agent=_bestfit_fn,
+        risk_agent=_risk_fn,
+        summary_agent=_summary_fn,
+        analytics_boost=boost,
+        thresholds={"bid_min_fit": 0.7, "no_bid_max_fit": 0.4},
+        mandatory_penalty=0.3,
+    )
+    return await pipeline.run(
+        db=db, rfp_id=rfp_id,
+        tenant_id=ctx["tenant_id"], user_id=ctx["user_id"])
+
+
+@app.get("/assess/stream/{rfp_id}")
+async def assess_stream(rfp_id: str, request: Request,
+                          db: AsyncSession = Depends(get_db)):
+    row = await db.execute(
+        sqltext("SELECT version FROM bid_assessments WHERE rfp_id = :r "
+                "ORDER BY version DESC LIMIT 1"),
+        {"r": rfp_id})
+    v = row.scalar()
+    if v is None:
+        raise HTTPException(404, "No assessment for this RFP")
+    v = int(v)
+    queue = sse.attach_listener(rfp_id, v)
+    backlog = sse.replay(rfp_id, v)
+
+    async def gen():
+        try:
+            for e in backlog:
+                yield sse.format_sse(e)
+            while True:
+                if await request.is_disconnected():
+                    break
+                e = await queue.get()
+                yield sse.format_sse(e)
+                if e.get("event") in ("close", "complete"):
+                    break
+        finally:
+            sse.detach_listener(rfp_id, v, queue)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")

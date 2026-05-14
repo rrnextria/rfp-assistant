@@ -63,6 +63,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="rfp-service", lifespan=lifespan)
 
+from assessment import router as assessment_router
+app.include_router(assessment_router)
+
 
 @app.get("/healthz")
 async def healthz():
