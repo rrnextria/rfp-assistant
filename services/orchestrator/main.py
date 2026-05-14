@@ -101,25 +101,38 @@ def _ctx(x_tenant_id: str | None = Header(default=None),
 
 
 def _make_llm_client():
-    """Best-effort LLM adapter: Claude > OpenAI > None.
+    """Best-effort LLM adapter. Tenants can set LLM_PROVIDER to force a
+    specific provider; otherwise we prefer OpenAI when its key is present
+    (the OpenAI key is more frequently rotated in this deployment), then
+    Anthropic, then None.
 
     Agents tolerate None by returning empty result sets (status='unknown',
     etc.), which the pipeline still persists as a `partial` assessment.
     """
     s = get_settings()
-    try:
-        if getattr(s, "anthropic_api_key", None):
-            from claude import ClaudeAdapter
-            return ClaudeAdapter(api_key=s.anthropic_api_key,
-                                  model="claude-sonnet-4-6")
-    except Exception:
-        pass
-    try:
-        if getattr(s, "openai_api_key", None):
-            from openai_adapter import OpenAIAdapter
-            return OpenAIAdapter(api_key=s.openai_api_key, model="gpt-4o")
-    except Exception:
-        pass
+    preferred = os.environ.get("LLM_PROVIDER", "").lower()
+    have_openai = bool(getattr(s, "openai_api_key", None))
+    have_anthropic = bool(getattr(s, "anthropic_api_key", None))
+
+    order: list[str] = []
+    if preferred in ("openai", "anthropic"):
+        order.append(preferred)
+    if "openai" not in order and have_openai:
+        order.append("openai")
+    if "anthropic" not in order and have_anthropic:
+        order.append("anthropic")
+
+    for provider in order:
+        try:
+            if provider == "openai" and have_openai:
+                from openai_adapter import OpenAIAdapter
+                return OpenAIAdapter(api_key=s.openai_api_key, model="gpt-4o")
+            if provider == "anthropic" and have_anthropic:
+                from claude import ClaudeAdapter
+                return ClaudeAdapter(api_key=s.anthropic_api_key,
+                                      model="claude-sonnet-4-6")
+        except Exception:
+            continue
     return None
 
 
