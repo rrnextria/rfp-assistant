@@ -304,6 +304,217 @@ async function serverFetch<T>(path: string, token: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ─── Bid Assessment / Capabilities / Snippets (browser) ──────────────────────
+
+// Tenant + branding
+export interface TenantBrand {
+  primary_color?: string;
+  accent_color?: string;
+  logo_url?: string;
+  report_header?: string;
+  report_footer?: string;
+}
+
+export interface Tenant {
+  id: string;
+  slug: string;
+  display_name: string;
+  brand: TenantBrand;
+  config?: Record<string, unknown>;
+}
+
+export async function getTenant(): Promise<Tenant> {
+  return apiFetch<Tenant>("/tenants/me");
+}
+
+export async function patchBrand(brand: TenantBrand): Promise<{ brand: TenantBrand }> {
+  return apiFetch<{ brand: TenantBrand }>("/tenants/me/brand", {
+    method: "PATCH",
+    body: JSON.stringify(brand),
+  });
+}
+
+// Assessments
+export type Verdict = "bid" | "no_bid" | "review";
+
+export interface AssessmentHead {
+  id: string;
+  rfp_id?: string;
+  version: number;
+  status: string;
+  verdict: Verdict | null;
+  fit_score: number | null;
+  win_probability: number | null;
+  summary: string | null;
+  created_at?: string;
+  created_by?: string;
+}
+
+export interface ComplianceItem {
+  id: string;
+  label: string;
+  category: string;
+  mandatory: boolean;
+  status: "pass" | "fail" | "partial" | "unknown";
+  evidence: { kind?: string; ref_id?: string; excerpt?: string };
+}
+
+export interface EligibilityItem {
+  id: string;
+  label: string;
+  kind: string;
+  expected: string | null;
+  actual: string | null;
+  status: "pass" | "fail" | "partial" | "unknown";
+}
+
+export interface RiskItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  severity: "low" | "medium" | "high" | "critical" | string;
+  likelihood: "low" | "medium" | "high" | string;
+  mitigation?: string | null;
+}
+
+export interface BestFitMatch {
+  id: string;
+  requirement: string;
+  offering: string | null;
+  match_score: number; // 0..100
+  note?: string | null;
+}
+
+export interface AssessmentLatest {
+  head: AssessmentHead;
+  compliance: ComplianceItem[];
+  eligibility: EligibilityItem[];
+  risks: RiskItem[];
+  best_fit: BestFitMatch[];
+}
+
+export interface AssessmentRunResponse {
+  assessment_id: string;
+  version: number;
+  status: string;
+  verdict: Verdict | null;
+  fit_score: number | null;
+  win_probability: number | null;
+  summary: string | null;
+}
+
+export async function runAssessment(rfpId: string): Promise<AssessmentRunResponse> {
+  return apiFetch<AssessmentRunResponse>(`/rfps/${rfpId}/assess`, { method: "POST" });
+}
+
+export async function getAssessmentLatest(rfpId: string): Promise<AssessmentLatest | null> {
+  const url = `${API_BASE}/rfps/${rfpId}/assessments/latest`;
+  const res = await fetch(url, { credentials: "include" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`assessment fetch failed (${res.status})`);
+  return res.json() as Promise<AssessmentLatest>;
+}
+
+export async function listAssessments(rfpId: string): Promise<AssessmentHead[]> {
+  return apiFetch<AssessmentHead[]>(`/rfps/${rfpId}/assessments`);
+}
+
+// Capabilities
+export interface CapabilityItem {
+  id: string;
+  name: string;
+}
+
+export interface ServiceLine {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface CapabilityProfile {
+  service_lines: ServiceLine[];
+  industries: CapabilityItem[];
+  geographies: CapabilityItem[];
+  certifications: CapabilityItem[];
+  products: CapabilityItem[];
+}
+
+export async function getCapabilityProfile(): Promise<CapabilityProfile> {
+  return apiFetch<CapabilityProfile>("/capabilities/profile");
+}
+
+async function capabilityCreate(resource: string, body: Record<string, unknown>) {
+  return apiFetch<CapabilityItem | ServiceLine>(`/capabilities/${resource}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+async function capabilityDelete(resource: string, id: string): Promise<void> {
+  const url = `${API_BASE}/capabilities/${resource}/${id}`;
+  const res = await fetch(url, { method: "DELETE", credentials: "include" });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete failed (${res.status})`);
+  }
+}
+
+export const createIndustry = (name: string) => capabilityCreate("industries", { name });
+export const deleteIndustry = (id: string) => capabilityDelete("industries", id);
+export const createGeography = (name: string) => capabilityCreate("geographies", { name });
+export const deleteGeography = (id: string) => capabilityDelete("geographies", id);
+export const createCertification = (name: string) => capabilityCreate("certifications", { name });
+export const deleteCertification = (id: string) => capabilityDelete("certifications", id);
+export const createServiceLine = (name: string, description?: string) =>
+  capabilityCreate("service-lines", { name, description });
+export const deleteServiceLine = (id: string) => capabilityDelete("service-lines", id);
+
+// Snippets
+export interface Snippet {
+  id: string;
+  title: string;
+  body: string;
+  status: string;
+  metadata?: {
+    topic_tags?: string[];
+    version?: number;
+    [k: string]: unknown;
+  };
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SnippetInput {
+  title: string;
+  body: string;
+  topic_tags?: string[];
+}
+
+export async function listSnippets(): Promise<Snippet[]> {
+  return apiFetch<Snippet[]>("/snippets");
+}
+
+export async function createSnippet(input: SnippetInput): Promise<Snippet> {
+  return apiFetch<Snippet>("/snippets", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function patchSnippet(id: string, input: Partial<SnippetInput>): Promise<Snippet> {
+  return apiFetch<Snippet>(`/snippets/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSnippet(id: string): Promise<void> {
+  const url = `${API_BASE}/snippets/${id}`;
+  const res = await fetch(url, { method: "DELETE", credentials: "include" });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`delete snippet failed (${res.status})`);
+  }
+}
+
 export const apiServer = {
   listRFPs(token: string): Promise<RFP[]> {
     return serverFetch("/rfps", token);

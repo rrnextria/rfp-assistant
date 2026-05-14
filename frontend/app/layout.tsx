@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BrandThemeProvider } from "@/components/branding/BrandThemeProvider";
 
 export const metadata: Metadata = {
   title: "RFP Assistant",
@@ -14,7 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-background font-sans antialiased">
-        {children}
+        <BrandThemeProvider>{children}</BrandThemeProvider>
       </body>
     </html>
   );

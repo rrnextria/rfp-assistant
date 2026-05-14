@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
@@ -285,3 +286,51 @@ async def delete_company(
         raise HTTPException(404, "Company not found")
     await db.execute(text("DELETE FROM companies WHERE id = :id"), {"id": company_id})
     await db.commit()
+
+
+# --- Tenants -----------------------------------------------------------------
+
+tenants_router = APIRouter(prefix="/tenants", tags=["tenants"])
+
+
+@tenants_router.get("/me")
+async def my_tenant(current_user: dict = Depends(get_current_user),
+                      db: AsyncSession = Depends(get_db)):
+    row = await db.execute(
+        text("SELECT id::text AS id, slug, display_name, brand, config "
+             "FROM tenants WHERE id = :id"),
+        {"id": current_user["tenant_id"]},
+    )
+    t = row.mappings().first()
+    if not t:
+        raise HTTPException(404, "Tenant not found")
+    return dict(t)
+
+
+class BrandPatch(BaseModel):
+    logo_url: str | None = None
+    primary_color: str | None = None
+    accent_color: str | None = None
+    report_header: str | None = None
+    report_footer: str | None = None
+
+
+@tenants_router.patch("/me/brand")
+async def patch_brand(req: BrandPatch,
+                       current_user: dict = Depends(get_current_user),
+                       db: AsyncSession = Depends(get_db)):
+    if current_user["role"] != "system_admin":
+        raise HTTPException(403, "Forbidden")
+    row = await db.execute(
+        text("SELECT brand FROM tenants WHERE id = :id"),
+        {"id": current_user["tenant_id"]},
+    )
+    current = dict((row.mappings().first() or {}).get("brand") or {})
+    for k, v in req.model_dump(exclude_none=True).items():
+        current[k] = v
+    await db.execute(
+        text("UPDATE tenants SET brand = CAST(:b AS jsonb) WHERE id = :id"),
+        {"b": json.dumps(current), "id": current_user["tenant_id"]},
+    )
+    await db.commit()
+    return {"brand": current}
