@@ -23,7 +23,7 @@ from agents import (
     SolutionRecommendationAgent,
 )
 
-logger = get_logger("portfolio-service")
+logger = get_logger("capability-service")
 
 _knowledge_agent = ProductKnowledgeAgent()
 _orchestration_agent = PortfolioOrchestrationAgent()
@@ -32,13 +32,13 @@ _recommendation_agent = SolutionRecommendationAgent()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting portfolio-service")
+    logger.info("Starting capability-service")
     get_engine()
     yield
     await get_engine().dispose()
 
 
-app = FastAPI(title="portfolio-service", lifespan=lifespan)
+app = FastAPI(title="capability-service", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ app = FastAPI(title="portfolio-service", lifespan=lifespan)
 
 @app.get("/healthz")
 async def healthz():
-    return {"status": "ok", "service": "portfolio-service"}
+    return {"status": "ok", "service": "capability-service"}
 
 
 # ---------------------------------------------------------------------------

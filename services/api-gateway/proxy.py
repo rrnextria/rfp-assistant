@@ -9,7 +9,7 @@ Service map (first path segment → base URL):
   ask        → orchestrator:8001
   documents  → content-service:8003
   admin      → analytics-service:8009
-  products   → portfolio-service:8010
+  capabilities → capability-service:8010
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ _SERVICE_MAP: dict[str, str] = {
     "ask": os.environ.get("ORCHESTRATOR_URL", "http://orchestrator:8001"),
     "documents": os.environ.get("CONTENT_SERVICE_URL", "http://content-service:8003"),
     "admin": os.environ.get("ANALYTICS_SERVICE_URL", "http://analytics-service:8009"),
-    "products": os.environ.get("PORTFOLIO_SERVICE_URL", "http://portfolio-service:8010"),
+    "capabilities": os.environ.get("CAPABILITY_SERVICE_URL", "http://capability-service:8010"),
 }
 
 router = APIRouter(tags=["proxy"])
