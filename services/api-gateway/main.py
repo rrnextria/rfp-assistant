@@ -7,7 +7,9 @@ from slowapi.util import get_remote_address
 
 from common.db import get_engine
 from common.logging import get_logger
-from auth import router as auth_router, users_router, companies_router, tenants_router
+from auth import (router as auth_router, users_router, companies_router,
+                   tenants_router, teams_router, customers_router,
+                   settings_router, general_router, llm_router)
 from proxy import router as proxy_router
 
 logger = get_logger("api-gateway")
@@ -35,7 +37,12 @@ async def healthz():
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(companies_router)
+app.include_router(customers_router)
+app.include_router(teams_router)
 app.include_router(tenants_router)
+app.include_router(settings_router)
+app.include_router(general_router)
+app.include_router(llm_router)
 
 # Proxy router must be last — its catch-all /{full_path:path} would shadow
 # more specific routes if registered earlier.
