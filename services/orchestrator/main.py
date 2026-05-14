@@ -135,7 +135,25 @@ async def assess_run(
 
     cap_url = os.environ.get("CAPABILITY_SERVICE_URL",
                               "http://capability-service:8010")
+    analytics_url = os.environ.get("ANALYTICS_SERVICE_URL",
+                                     "http://analytics-service:8009")
     llm = _make_llm_client()
+
+    # Best-effort fetch of the tenant-wide analytics boost. The min-N gate
+    # in analytics-service guarantees inactive patterns emit boost=0, so a
+    # cold-start tenant sees no learned adjustment.
+    boost = 0.0
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get(f"{analytics_url}/score-boosts",
+                              params={"tenant_id": ctx["tenant_id"]})
+            if r.status_code == 200:
+                active = [p["boost"] for p in r.json().get("patterns", [])
+                          if p.get("active")]
+                if active:
+                    boost = max(active)
+    except Exception:
+        pass
 
     async def _compliance_fn(requirements, tenant_id):
         return await run_compliance(
@@ -169,7 +187,7 @@ async def assess_run(
         bestfit_agent=_bestfit_fn,
         risk_agent=_risk_fn,
         summary_agent=_summary_fn,
-        analytics_boost=0.0,
+        analytics_boost=boost,
         thresholds={"bid_min_fit": 0.7, "no_bid_max_fit": 0.4},
         mandatory_penalty=0.3,
     )
