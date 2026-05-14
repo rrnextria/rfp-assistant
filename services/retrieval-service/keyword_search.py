@@ -31,6 +31,7 @@ async def keyword_search(
             c.id::text AS chunk_id,
             c.document_id::text AS doc_id,
             COALESCE(d.title, '') AS doc_title,
+            COALESCE(d.category, 'general') AS category,
             c.text,
             c.metadata,
             ts_rank_cd(c.text_search, plainto_tsquery('english', '{safe_query}')) AS score
@@ -53,6 +54,7 @@ async def keyword_search(
             text=row["text"],
             score=float(row["score"]),
             metadata=row["metadata"] if isinstance(row["metadata"], dict) else {},
+            category=row["category"] or "general",
         )
         for row in rows
     ]
