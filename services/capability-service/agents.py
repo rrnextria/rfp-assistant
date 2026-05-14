@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.embedder import SentenceTransformerEmbedder
 from common.logging import get_logger
 
-logger = get_logger("portfolio-service.agents")
+logger = get_logger("capability-service.agents")
 
 _embedder = SentenceTransformerEmbedder()
 

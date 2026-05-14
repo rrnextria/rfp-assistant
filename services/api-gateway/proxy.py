@@ -9,7 +9,7 @@ Service map (first path segment → base URL):
   ask        → orchestrator:8001
   documents  → content-service:8003
   admin      → analytics-service:8009
-  products   → portfolio-service:8010
+  capabilities → capability-service:8010
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ _SERVICE_MAP: dict[str, str] = {
     "ask": os.environ.get("ORCHESTRATOR_URL", "http://orchestrator:8001"),
     "documents": os.environ.get("CONTENT_SERVICE_URL", "http://content-service:8003"),
     "admin": os.environ.get("ANALYTICS_SERVICE_URL", "http://analytics-service:8009"),
-    "products": os.environ.get("PORTFOLIO_SERVICE_URL", "http://portfolio-service:8010"),
+    "capabilities": os.environ.get("CAPABILITY_SERVICE_URL", "http://capability-service:8010"),
 }
 
 router = APIRouter(tags=["proxy"])
@@ -77,10 +77,22 @@ async def proxy(request: Request, full_path: str) -> Response:
     body = await request.body()
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _SKIP_HEADERS}
 
-    # Ensure Authorization header is set (covers cookie-auth clients)
+    # Ensure Authorization header is set (covers cookie-auth clients) and
+    # inject X-Tenant-Id / X-User-Id / X-User-Role from the JWT so downstream
+    # services don't have to decode the token themselves.
     token = _extract_token(request)
     if token:
         headers["Authorization"] = f"Bearer {token}"
+        try:
+            payload = decode_token(token)
+            if payload.get("tenant_id"):
+                headers["X-Tenant-Id"] = str(payload["tenant_id"])
+            if payload.get("sub"):
+                headers["X-User-Id"] = str(payload["sub"])
+            if payload.get("role"):
+                headers["X-User-Role"] = str(payload["role"])
+        except JWTError:
+            pass  # _require_valid_token already raised above for invalid tokens
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:

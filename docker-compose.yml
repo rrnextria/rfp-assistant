@@ -35,7 +35,7 @@ services:
       - ./services/api-gateway:/app
       - ./common:/common
     ports:
-      - "8000:8000"
+      - "8011:8000"
     env_file: .env
     depends_on:
       postgres:
@@ -175,12 +175,12 @@ services:
       postgres:
         condition: service_healthy
 
-  portfolio-service:
+  capability-service:
     build:
       context: .
-      dockerfile: services/portfolio-service/Dockerfile
+      dockerfile: services/capability-service/Dockerfile
     volumes:
-      - ./services/portfolio-service:/app
+      - ./services/capability-service:/app
       - ./common:/common
     ports:
       - "8010:8010"
