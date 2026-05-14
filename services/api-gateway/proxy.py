@@ -30,6 +30,9 @@ _SERVICE_MAP: dict[str, str] = {
     "documents": os.environ.get("CONTENT_SERVICE_URL", "http://content-service:8003"),
     "admin": os.environ.get("ANALYTICS_SERVICE_URL", "http://analytics-service:8009"),
     "capabilities": os.environ.get("CAPABILITY_SERVICE_URL", "http://capability-service:8010"),
+    "snippets": os.environ.get("CONTENT_SERVICE_URL", "http://content-service:8003"),
+    "past-proposals": os.environ.get("CONTENT_SERVICE_URL", "http://content-service:8003"),
+    "contracts": os.environ.get("CONTENT_SERVICE_URL", "http://content-service:8003"),
 }
 
 router = APIRouter(tags=["proxy"])

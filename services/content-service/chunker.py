@@ -23,6 +23,12 @@ class Chunk:
     token_count: int
 
 
+def chunk_snippet(text: str) -> list[Chunk]:
+    """Boilerplate snippets are one chunk, no splitting, no overlap."""
+    enc = _get_encoder()
+    return [Chunk(text=text, heading=None, token_count=len(enc.encode(text)))]
+
+
 def chunk_sections(
     sections: list[Section],
     max_tokens: int = 500,
