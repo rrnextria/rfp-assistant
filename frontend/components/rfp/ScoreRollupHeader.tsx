@@ -1,6 +1,7 @@
 "use client";
 
 import type { Verdict } from "@/lib/api";
+import { formatPercent } from "@/lib/format";
 
 interface Props {
   verdict: Verdict | null;
@@ -48,7 +49,7 @@ export function ScoreRollupHeader({
 }
 
 function Metric({ label, value }: { label: string; value: number | null }) {
-  const pct = value == null ? "—" : `${Math.round(value * 100)}%`;
+  const pct = formatPercent(value);
   return (
     <div className="text-center">
       <div className="font-mono text-2xl text-gray-900">{pct}</div>

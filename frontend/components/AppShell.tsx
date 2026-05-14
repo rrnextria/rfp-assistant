@@ -27,6 +27,9 @@ const ADMIN_LINKS = [
   { href: "/admin/companies", label: "Companies", icon: "🏢" },
   { href: "/admin/capabilities", label: "Capabilities", icon: "🧩" },
   { href: "/admin/snippets", label: "Snippets", icon: "✂️" },
+  { href: "/admin/past-proposals", label: "Past proposals", icon: "📚" },
+  { href: "/admin/contracts", label: "Contracts", icon: "📑" },
+  { href: "/admin/branding", label: "Branding", icon: "🎨" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -99,7 +102,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <span>⚙️</span>
                 Admin
               </button>
-              <div className="absolute right-0 top-full hidden group-hover:block z-50 w-44 rounded-lg border bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-full hidden group-hover:block z-50 w-52 rounded-lg border bg-white py-1 shadow-lg">
                 {ADMIN_LINKS.map((link) => (
                   <Link
                     key={link.href}

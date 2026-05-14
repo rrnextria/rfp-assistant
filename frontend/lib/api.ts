@@ -515,6 +515,129 @@ export async function deleteSnippet(id: string): Promise<void> {
   }
 }
 
+// ─── Past Proposals ──────────────────────────────────────────────────────────
+
+export type ProposalOutcome = "pending" | "won" | "lost" | "withdrawn";
+
+export interface PastProposal {
+  id: string;
+  document_id?: string;
+  client_name?: string;
+  outcome: ProposalOutcome | string;
+  submitted_at?: string;
+  industry_id?: string;
+  outcome_reason?: string | null;
+  value_amount?: number | null;
+  value_currency?: string | null;
+}
+
+export interface PastProposalInput {
+  title: string;
+  body: string;
+  client_name: string;
+  industry_id?: string;
+  submitted_at: string;
+  outcome: ProposalOutcome | string;
+  outcome_reason?: string;
+  value_amount?: number;
+  value_currency?: string;
+}
+
+export async function listPastProposals(
+  params?: { outcome?: string; industry_id?: string }
+): Promise<PastProposal[]> {
+  const query = new URLSearchParams();
+  if (params?.outcome) query.set("outcome", params.outcome);
+  if (params?.industry_id) query.set("industry_id", params.industry_id);
+  const qs = query.toString();
+  return apiFetch<PastProposal[]>(`/past-proposals${qs ? `?${qs}` : ""}`);
+}
+
+export async function createPastProposal(
+  body: PastProposalInput
+): Promise<{ id: string; document_id: string; outcome: string }> {
+  return apiFetch("/past-proposals", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function patchPastProposal(
+  id: string,
+  body: { outcome: string; outcome_reason?: string }
+): Promise<PastProposal> {
+  return apiFetch<PastProposal>(`/past-proposals/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+// ─── Contracts ───────────────────────────────────────────────────────────────
+
+export interface Contract {
+  id: string;
+  document_id?: string;
+  client_name?: string;
+  effective_date?: string;
+  expires_at?: string | null;
+  value_amount?: number | null;
+  value_currency?: string | null;
+}
+
+export interface ContractInput {
+  title: string;
+  body: string;
+  client_name: string;
+  effective_date: string;
+  expires_at?: string;
+  value_amount?: number;
+  value_currency?: string;
+}
+
+export async function listContracts(
+  params?: { expires_before?: string }
+): Promise<Contract[]> {
+  const query = new URLSearchParams();
+  if (params?.expires_before) query.set("expires_before", params.expires_before);
+  const qs = query.toString();
+  return apiFetch<Contract[]>(`/contracts${qs ? `?${qs}` : ""}`);
+}
+
+export async function createContract(
+  body: ContractInput
+): Promise<{ id: string; document_id: string }> {
+  return apiFetch("/contracts", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// ─── Score Boosts (learning status) ──────────────────────────────────────────
+
+export interface ScoreBoostPattern {
+  industry_id: string;
+  industry_name?: string;
+  n_total: number;
+  n_won: number;
+  win_rate: number;
+  boost: number;
+  active: boolean;
+}
+
+export interface ScoreBoosts {
+  tenant_id: string;
+  min_n: number;
+  max_boost: number;
+  patterns: ScoreBoostPattern[];
+  n_total_proposals: number;
+}
+
+export async function getScoreBoosts(tenantId: string): Promise<ScoreBoosts> {
+  return apiFetch<ScoreBoosts>(
+    `/score-boosts?tenant_id=${encodeURIComponent(tenantId)}`
+  );
+}
+
 export const apiServer = {
   listRFPs(token: string): Promise<RFP[]> {
     return serverFetch("/rfps", token);
