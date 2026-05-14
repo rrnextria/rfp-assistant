@@ -77,10 +77,22 @@ async def proxy(request: Request, full_path: str) -> Response:
     body = await request.body()
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _SKIP_HEADERS}
 
-    # Ensure Authorization header is set (covers cookie-auth clients)
+    # Ensure Authorization header is set (covers cookie-auth clients) and
+    # inject X-Tenant-Id / X-User-Id / X-User-Role from the JWT so downstream
+    # services don't have to decode the token themselves.
     token = _extract_token(request)
     if token:
         headers["Authorization"] = f"Bearer {token}"
+        try:
+            payload = decode_token(token)
+            if payload.get("tenant_id"):
+                headers["X-Tenant-Id"] = str(payload["tenant_id"])
+            if payload.get("sub"):
+                headers["X-User-Id"] = str(payload["sub"])
+            if payload.get("role"):
+                headers["X-User-Role"] = str(payload["role"])
+        except JWTError:
+            pass  # _require_valid_token already raised above for invalid tokens
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:

@@ -40,6 +40,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="capability-service", lifespan=lifespan)
 
+from capabilities.router import (industries_router, geographies_router,
+                                   certifications_router, service_lines_router)
+from capabilities.profile import profile_router
+
+app.include_router(industries_router)
+app.include_router(geographies_router)
+app.include_router(certifications_router)
+app.include_router(service_lines_router)
+app.include_router(profile_router)
+
 
 # ---------------------------------------------------------------------------
 # Health
