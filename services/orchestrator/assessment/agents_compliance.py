@@ -28,11 +28,15 @@ async def run_compliance(
 ) -> list[ComplianceItem]:
     items: list[ComplianceItem] = []
     for req in requirements:
-        chunks = await retrieval_call(
-            query=req["text"],
-            user_context={"tenant_id": tenant_id, "role": "system"},
-            top_n=5,
-        )
+        try:
+            chunks = await retrieval_call(
+                question=req["text"],
+                user_context={"tenant_id": tenant_id, "role": "system",
+                              "user_id": "", "teams": []},
+                top_n=5,
+            )
+        except Exception:
+            chunks = []
         if not chunks:
             items.append(ComplianceItem(
                 requirement_id=req.get("id"),
